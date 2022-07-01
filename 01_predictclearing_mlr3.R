@@ -118,12 +118,9 @@ ifelse(
 
 # 1.2 Mask out the losses outside of the woody in the private land
 #Clip Loss Raster
-loss.raster <- rast(str_c(data.path, "loss/", "agriforestloss.tif"))
-all.loss.raster <- rast(str_c(data.path,"loss/", "allagentloss.tif"))
+all.loss.raster <- rast(str_c(data.path,"loss/", "nsw_state_allagents_resampled100m_majorityrule.tif"))
 
-bct <- st_read(dir(bct.path, full.names = T, pattern = "*.shp$"))
-
-woodyonprivate <- rast(str_c(data.path, "woodyonprivate/","woodyonprivate.tif"))
+woodyonprivate <- rast(str_c(data.path, "woodyonprivateland/","woodyonprivate.tif"))
 
 cov.path <- dir(str_c(data.path, "covariates", sep=""), full.names = T, pattern = ".tif$")
 
@@ -133,7 +130,7 @@ loss.pts <- as.points(loss.raster) %>%
   as.data.frame() %>%
   transmute(x,y)
 
-### 2. Collect background samples
+###2. Collect background samples
 bg.raster <- woodyonprivate %>%
   mask(., vect(bct), inverse = T) %>%
   mask(., all.loss.raster, inverse = T)
@@ -319,24 +316,24 @@ at_xgboost_resample <- mlr3tuning::AutoTuner$new(
 
 #
 # progressr::with_progress(expr = {
-# resampled = mlr3::resample(task = task,
-#                            learner = at_xgboost_resample,
-#                            # outer resampling (performance level)
-#                            resampling = perf.level,
-#                            store_models = TRUE,
-#                            encapsulate = "evaluate")
+resampled = mlr3::resample(task = task,
+                           learner = at_xgboost_resample,
+                           # outer resampling (performance level)
+                           resampling = perf.level,
+                           store_models = TRUE,
+                           encapsulate = "evaluate")
 # 
 # saveRDS(resampled, str_c(results.path,"resampled.Rds"))
 # 
 # future:::ClusterRegistry("stop")
 # # compute the AUROC as a data.table
-# auc.score <- resampled $score(
-#   measure = mlr3::msr("classif.auc")) %>%
-#   as.data.frame() %>%
-#   dplyr::select(task_id, learner_id, resampling_id, classif.auc)
+auc.score <- resampled $score(
+  measure = mlr3::msr("classif.auc")) %>%
+  as.data.frame() %>%
+  dplyr::select(task_id, learner_id, resampling_id, classif.auc)
 # 
-# hist(auc.score$classif.auc)
-# mean(auc.score$classif.auc)
+hist(auc.score$classif.auc)
+mean(auc.score$classif.auc)
 
 #Get the models from the resampled data
 #boot.models <- mlr3misc::map(as.data.table(resampled)$learner, "learner")
