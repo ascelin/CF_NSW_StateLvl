@@ -45,8 +45,6 @@ runparallel=F
 
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
 #Load data-sets
-nsw <- st_read("./data/studyarea/state/NSW_STATE_POLYGON_shp_ex_islands_proj.shp")
-bioregion <- st_read("./data/studyarea/Cfact_analysis_regions/Cfact_analysis_regions_prj.shp")
 
 ifelse(
   region == "Coastal",
@@ -82,6 +80,10 @@ if (!dir.exists(results.path)){dir.create(results.path)}
 
 # Start the timer
 tic("Start analysis")
+
+#Study area
+nsw <- st_read(str_c(data.path,"studyarea/state/NSW_STATE_POLYGON_shp_ex_islands_proj.shp"))
+bioregion <- st_read(str_c("./data/studyarea/Cfact_analysis_regions/Cfact_analysis_regions_prj.shp"))
 
 loss.path <- dir(str_c(data.path, "loss"), full.names=T, pattern = "majorityrule")
 cov.path <- dir(str_c(data.path, "covariates", sep=""), full.names = T, pattern = ".tif$")
