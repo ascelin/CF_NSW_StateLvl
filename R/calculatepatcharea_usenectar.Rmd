@@ -1,0 +1,84 @@
+```{r}
+library(terra)
+library(raster)
+library(landscapemetrics)
+```
+
+```{r load woody data}
+
+woody <- raster("nsw_state_woody_100m_majorityrule.tif")
+plot(woody)
+check_landscape(woody)
+
+#Calculate patch area
+patch_area <- spatialize_lsm(woody, what = "lsm_p_area")
+export_raster <- patch_area$layer_1$lsm_p_area
+writeRaster(export_raster,"woodypatch_area.tif", overwrite=T)
+
+```
+
+plot(woody)
+
+
+```{r load libraries}
+library(landscapemetrics)
+library(landscapetools)
+library(raster)
+library(sf)
+library(tidyverse)
+
+##https://r-spatialecology.github.io/landscapemetrics/articles/articles/utility.html
+
+```
+
+```{r do the landscape metrics}
+
+#Load the data
+
+##FOR NSW
+#woody_data <- raster::raster("E:/Ecology Projects/Counterfactual NSW/data/woody_processed_majority/woody_2008_majority_100m.tif")
+
+##FOR NORTH COAST
+woody_data <- raster("E:/Ecology Projects/CF_project_NC/training/resampled_woody_preSPOT_100m_majority.tif")
+
+## Convert 0 to NA
+woody_data[woody_data==0] <- NA
+
+## Landscapemetrics
+## The resolution of a raster cell has to be in meters
+
+crs(woody_data)
+
+#Project this raster
+woody_projected <- raster::projectRaster(woody_data,crs= "EPSG:3577")
+
+check_landscape(woody_projected)
+
+##Somehow the projection didn't work so did in long lat only use with caution
+#Patch area
+patch_area <- spatialize_lsm(woody_data, what = "lsm_p_area")
+
+export_raster <- patch_area$layer_1$lsm_p_area
+
+#Back to the previous projection
+export_raster <- projectRaster(export_raster, crs = crs(woody_data))
+
+r_resam <- raster::resample(export_raster,woody_data, method='bilinear')
+
+writeRaster(r_resam,"E:/Ecology Projects/CF_project_NC/covariates/patch_area_NCc.tif", overwrite=T)
+
+#new_raster <- spatialize_lsm(woody_spot_2011, what = "lsm_p_area")
+
+# export_raster <- new_raster$layer_1$lsm_p_area
+
+#export_raster <- projectRaster(export_raster, crs = 'EPSG:4326')
+
+##Get a dummy raster for resample
+#r2 <- raster("./data/covariatesbrick/8_landuse_NSW South Western Slopes.tif")
+
+#r_resam <- resample(export_raster,r2,method='bilinear')
+
+#writeRaster(r_resam, filename = "./data/covariatesbrick/00woody_spot_2011_landmetric_patch_area.tif")
+
+```
+

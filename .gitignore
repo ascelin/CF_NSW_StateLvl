@@ -1,0 +1,8 @@
+#In MAC
+.DS_Store
+
+#In windows
+data/
+results/
+_pred_risk.tif
+
