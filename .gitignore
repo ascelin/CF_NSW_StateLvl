@@ -1,7 +1,10 @@
 #In MAC
 .DS_Store
 
-#In windows
+.Rhistory
+
+#Ignore Roshan's folders and files
+
 data/
 results/
 _pred_risk.tif
