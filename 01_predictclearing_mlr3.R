@@ -46,14 +46,6 @@ runparallel=F
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
 #Load data-sets
 
-ifelse(
-  region == "Coastal",
-  roi <- bioregion %>% filter(Cfact_Regi == region),
-  roi <- nsw
-)
-
-print(str_c("Model starting for ", region, " level analysis"))
-
 ###### SECTION 1: DATA PREPARATION ##############
 
 #Specify the data path based on the system
@@ -82,6 +74,15 @@ if (!dir.exists(results.path)){dir.create(results.path)}
 tic("Start analysis")
 
 #Study area
+
+ifelse(
+  region == "Coastal",
+  roi <- bioregion %>% filter(Cfact_Regi == region),
+  roi <- nsw
+)
+
+print(str_c("Model starting for ", region, " level analysis"))
+
 nsw <- st_read(str_c(data.path,"studyarea/state/NSW_STATE_POLYGON_shp_ex_islands_proj.shp"))
 bioregion <- st_read(str_c("./data/studyarea/Cfact_analysis_regions/Cfact_analysis_regions_prj.shp"))
 
