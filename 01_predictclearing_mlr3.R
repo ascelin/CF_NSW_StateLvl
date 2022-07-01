@@ -76,7 +76,7 @@ tic("Start analysis")
 #Study area
 
 nsw <- st_read(str_c(data.path,"studyarea/state/NSW_STATE_POLYGON_shp_ex_islands_proj.shp"))
-bioregion <- st_read(str_c("./data/studyarea/Cfact_analysis_regions/Cfact_analysis_regions_prj.shp"))
+bioregion <- st_read(str_c(data.path,"studyarea/Cfact_analysis_regions/Cfact_analysis_regions_prj.shp"))
 
 ifelse(
   region == "Coastal",
