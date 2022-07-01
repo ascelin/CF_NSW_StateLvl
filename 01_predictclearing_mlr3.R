@@ -75,6 +75,9 @@ tic("Start analysis")
 
 #Study area
 
+nsw <- st_read(str_c(data.path,"studyarea/state/NSW_STATE_POLYGON_shp_ex_islands_proj.shp"))
+bioregion <- st_read(str_c("./data/studyarea/Cfact_analysis_regions/Cfact_analysis_regions_prj.shp"))
+
 ifelse(
   region == "Coastal",
   roi <- bioregion %>% filter(Cfact_Regi == region),
@@ -82,9 +85,6 @@ ifelse(
 )
 
 print(str_c("Model starting for ", region, " level analysis"))
-
-nsw <- st_read(str_c(data.path,"studyarea/state/NSW_STATE_POLYGON_shp_ex_islands_proj.shp"))
-bioregion <- st_read(str_c("./data/studyarea/Cfact_analysis_regions/Cfact_analysis_regions_prj.shp"))
 
 loss.path <- dir(str_c(data.path, "loss"), full.names=T, pattern = "majorityrule")
 cov.path <- dir(str_c(data.path, "covariates", sep=""), full.names = T, pattern = ".tif$")
