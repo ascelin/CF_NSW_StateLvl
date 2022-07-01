@@ -425,6 +425,8 @@ writeRaster(pred, str_c(results.path,"predrisk",".tif"),overwrite=T)
 
 gc()
 
+toc()
+
 #New predict data
 # newdata = as.data.frame(as.matrix(covariates))
 # ind = rowSums(is.na(newdata)) == 0
