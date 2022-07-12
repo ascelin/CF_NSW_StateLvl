@@ -11,7 +11,7 @@ project.res <- 100
 required.packages <- c("sf","terra","data.table","tidyverse",
                        "mlr3","mlr3learners","mlr3spatiotempcv",
                        "mlr3viz","mlr3tuning","iml","future","furrr",
-                       "purrr","xgboost","lattice","tictoc","scico")
+                       "purrr","xgboost","lattice","tictoc","scico","ggtext")
 
 purrr::walk(required.packages,library, character.only = T)
 
@@ -33,12 +33,13 @@ agent <- "agri"
 #Now model by increasing the number of samples - increase the sample to see
 #if there will be increase in the accuracy
 
-nsamples <- 10000
+nsamples <- 500
 nfolds <- 5
-nreps <- 2
+nreps <- 100
+
 #Number of combinations from random grid search 
 # for different hyper-parameter combination
-nmod <- 5
+nmod <- 20
 
 #Only relevant to windows and mac for now- parallel will be off for nectar
 runparallel=F
@@ -89,6 +90,9 @@ print(str_c("Model starting for ", region, " level analysis"))
 loss.path <- dir(str_c(data.path, "loss"), full.names=T, pattern = "majorityrule")
 cov.path <- dir(str_c(data.path, "covariates", sep=""), full.names = T, pattern = ".tif$")
 
+#Remove minimum lot size from the state level as there is no data in western states
+cov.path <- str_subset(cov.path, pattern = "minimumlotsize", negate = T)
+
 #Load other datasets
 bct <- st_read(dir(str_c(data.path,"/bct/"), full.names = T, pattern = "*.shp$"))
 woody.private.land <- rast(dir(str_c(data.path, "woodyonprivateland", sep=""), full.names = T, pattern = ".tif$"))
@@ -121,8 +125,6 @@ ifelse(
 all.loss.raster <- rast(str_c(data.path,"loss/", "nsw_state_allagents_resampled100m_majorityrule.tif"))
 
 woodyonprivate <- rast(str_c(data.path, "woodyonprivateland/","woodyonprivate.tif"))
-
-cov.path <- dir(str_c(data.path, "covariates", sep=""), full.names = T, pattern = ".tif$")
 
 ##1.3 Now get the training points/pixels from the loss raster
 loss.pts <- as.points(loss.raster) %>%
@@ -161,6 +163,7 @@ used.samples <- nrow(loss.pts)
 #                      ext = ext(roi),
 #                      na.rm = T)
 
+set.seed = 2022
 bg.pts <- as.points(bg.raster) %>%
   geom() %>%
   as.data.frame() %>%
@@ -191,7 +194,10 @@ print(str_c("Starting model:: ",model.name))
 
 covariates <- rast(cov.path)
 
+print(str_c("No of covariates used for modelling: ", nlyr(covariates)))
+
 #extract names from filenames
+
 good.names <- str_extract(cov.path,pattern = "(?<=_)[^.]*(?=.)")
 good.names
 #Assign names now
@@ -237,7 +243,7 @@ task = mlr3spatiotempcv::TaskClassifST$new(
   extra_args = list(
     coordinate_names = c("x", "y"), #Specify to use these columns as coordinates
     coords_as_features = FALSE,
-    crs = "EPSG:3577")
+    crs = "EPSG:3577") #Albers
 )
 
 levs = levels(task$truth())
@@ -265,8 +271,6 @@ perf.level = mlr3::rsmp("repeated_spcv_coords", folds = nfolds, repeats = nreps)
 #Create an inner level resampling strategy
 tune.level = mlr3::rsmp("spcv_coords", folds = 5)
 
-library(ggtext)
-
 cvplot = autoplot(tune.level, task, c(1, 2, 3, 4, 5),
                   crs = 3577, point_size = 3, axis_label_fontsize = 10,
                   plot3D = TRUE
@@ -277,7 +281,7 @@ cvplot = autoplot(tune.level, task, c(1, 2, 3, 4, 5),
 ggsave(str_c(results.path,"spatialcv.png"), cvplot, bg="white")
 
 ##specify the budget available for tuning - we use
-##terminate after a given number of iterations of hyperparameter combinations
+##terminate after a given number of iterations of hyper-parameter combinations
 evals = mlr3tuning::trm("evals", n_evals = nmod)
 
 #Set the optimization of algorithm takes place - we choose random search
@@ -320,7 +324,7 @@ resampled = mlr3::resample(task = task,
                            learner = at_xgboost_resample,
                            # outer resampling (performance level)
                            resampling = perf.level,
-                           store_models = TRUE,
+                           store_models = F,
                            encapsulate = "evaluate")
 # 
 # saveRDS(resampled, str_c(results.path,"resampled.Rds"))
@@ -331,6 +335,7 @@ auc.score <- resampled $score(
   measure = mlr3::msr("classif.auc")) %>%
   as.data.frame() %>%
   dplyr::select(task_id, learner_id, resampling_id, classif.auc)
+
 # 
 hist(auc.score$classif.auc)
 mean(auc.score$classif.auc)
