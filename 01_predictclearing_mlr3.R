@@ -33,7 +33,7 @@ agent <- "agri"
 #Now model by increasing the number of samples - increase the sample to see
 #if there will be increase in the accuracy
 
-nsamples <- 500
+nsamples <- 2e4
 nfolds <- 5
 nreps <- 100
 
