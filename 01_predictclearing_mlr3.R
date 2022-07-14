@@ -23,7 +23,7 @@ agent <- c("agri","fores","infra","combined")
 #nsamples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
 nfolds <- 5 #CV folds
 nreps <- 2 #Number of times to repeat CV
-nmod <- 50 #Hyper parameter search limit
+nmod <- 2 #Hyper parameter search limit
 
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
 
@@ -272,7 +272,7 @@ cvplot = autoplot(tune.level, task, c(1, 2, 3, 4, 5),
 
 #cvplot
 
-ggsave(str_c(results.path,model.name,"_spatialcv.png"), cvplot, bg="white")
+#ggsave(str_c(results.path,model.name,"_spatialcv.png"), cvplot, bg="white")
 
 ##specify the budget available for tuning - we use
 ##terminate after a given number of iterations of hyper-parameter combinations
@@ -328,12 +328,14 @@ resampled = mlr3::resample(task = task,
 # # compute the AUROC as a data.table
 auc <- resampled$score(
   measure = mlr3::msr("classif.auc")) %>%
-  as.data.frame() %>%
+  as.data.frame() 
+
+auc_plot <- auc %>%
   ggplot() +
   geom_histogram(aes(x = classif.auc, y = (..count..)/sum(..count..)),
                  bins = 20, fill = "turquoise4", colour = "gray") +
   geom_vline(
-    data = auc.score %>% summarise(m = mean(auc.score$classif.auc)),
+    data = auc %>% summarise(m = mean(auc$classif.auc)),
     aes(xintercept = m), linetype="dotted", col = "black", size = 2)+
   theme_minimal() +
   xlab("AUC values") +
@@ -341,7 +343,7 @@ auc <- resampled$score(
   theme(text = element_text(size = 20),
         plot.title = element_text(hjust = -0.5))
 
-ggsave(str_c(results.path,model.name,"_auc.png"), auc, bg="white")
+ggsave(str_c(results.path,model.name,"_auc.png"), auc_plot, bg="white")
 
 #Get the models from the resampled data
 #boot.models <- mlr3misc::map(as.data.table(resampled)$learner, "learner")
@@ -362,37 +364,37 @@ ggsave(str_c(results.path,model.name,"_auc.png"), auc, bg="white")
 # from these models, now we tune the hyper-parameters using
 # all the data # We don't need the inner re sampling here
 # With hyper-parameters combinations there will be 5 * 50 = 250 models here
-
-at_main = mlr3tuning::AutoTuner$new(
-  learner = learner,
-  resampling = mlr3::rsmp("spcv_coords", folds = nfolds), # spatial partitioning
-  measure = mlr3::msr("classif.auc"), # performance measure
-  search_space = search_space, # predefined hyper-parameter search space
-  store_models = T,
-  terminator = mlr3tuning::trm("evals", n_evals = nmod), # specify 50 iterations
-  tuner = mlr3tuning::tnr("random_search") # specify random search
-)
-
-# hyper-parameter tuning
-set.seed(2022)
-
-#Auto-tune a model
-tuned.model = at_main$train(task)
-
-#VIP plot
-vip <- tuned.model$learner$importance() %>%
-  as.data.frame() %>%
-  rownames_to_column() %>%
-  set_names("variable","importance") %>%
-  ggplot(aes(reorder(variable,importance),importance))+
-  geom_bar(stat = "identity")+
-  labs(y = "Variable importance", x = "")+
-  coord_flip()+
-  theme_minimal()
-
-vip
-
-ggsave(str_c(results.path,model.name,"_vip.png"), vip, bg="white")
+# 
+# at_main = mlr3tuning::AutoTuner$new(
+#   learner = learner,
+#   resampling = mlr3::rsmp("spcv_coords", folds = nfolds), # spatial partitioning
+#   measure = mlr3::msr("classif.auc"), # performance measure
+#   search_space = search_space, # predefined hyper-parameter search space
+#   store_models = T,
+#   terminator = mlr3tuning::trm("evals", n_evals = nmod), # specify 50 iterations
+#   tuner = mlr3tuning::tnr("random_search") # specify random search
+# )
+# 
+# # hyper-parameter tuning
+# set.seed(2022)
+# 
+# #Auto-tune a model
+# tuned.model = at_main$train(task)
+# 
+# #VIP plot
+# vip <- tuned.model$learner$importance() %>%
+#   as.data.frame() %>%
+#   rownames_to_column() %>%
+#   set_names("variable","importance") %>%
+#   ggplot(aes(reorder(variable,importance),importance))+
+#   geom_bar(stat = "identity")+
+#   labs(y = "Variable importance", x = "")+
+#   coord_flip()+
+#   theme_minimal()
+# 
+# vip
+# 
+# ggsave(str_c(results.path,model.name,"_vip.png"), vip, bg="white")
 
 #Don't run model interpretation now
 #################### Model interpretation ##############################
@@ -414,25 +416,25 @@ ggsave(str_c(results.path,model.name,"_vip.png"), vip, bg="white")
 #terra predict didn't have an option to predict to prob
 
 # used a custom function from
-pfmlr = function(model, ...) {
-  if(model$predict_type == "prob") {
-    p = model$predict_newdata(...)$data$prob
-    if(length(levs) != ncol(p)) {
-      missing = setdiff(levs, colnames(p))
-      pm = matrix(0, ncol = length(missing), nrow = nrow(p), dimnames = list(NULL, missing))
-      p = cbind(p, pm)
-      p = p[, levs]
-    }
-    p[,1] #get the prob for 1st class
-  } else {
-    model$predict_newdata(...)$data$response
-  }
-}
-
-#Make prediction
-pred <- terra::predict(covariates, tuned.model, fun = pfmlr, na.rm = TRUE)
-pred <- round(pred, 5)
-writeRaster(pred, str_c(results.path,model.name, "_predrisk",".tif"),overwrite=T)
+# pfmlr = function(model, ...) {
+#   if(model$predict_type == "prob") {
+#     p = model$predict_newdata(...)$data$prob
+#     if(length(levs) != ncol(p)) {
+#       missing = setdiff(levs, colnames(p))
+#       pm = matrix(0, ncol = length(missing), nrow = nrow(p), dimnames = list(NULL, missing))
+#       p = cbind(p, pm)
+#       p = p[, levs]
+#     }
+#     p[,1] #get the prob for 1st class
+#   } else {
+#     model$predict_newdata(...)$data$response
+#   }
+# }
+# 
+# #Make prediction
+# pred <- terra::predict(covariates, tuned.model, fun = pfmlr, na.rm = TRUE)
+# pred <- round(pred, 5)
+# writeRaster(pred, str_c(results.path,model.name, "_predrisk",".tif"),overwrite=T)
 
 toc(log = TRUE, quiet = TRUE)
 log.txt <- unlist(tic.log(format = T))
