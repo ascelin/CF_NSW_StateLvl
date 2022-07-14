@@ -28,9 +28,25 @@ nmod <- 50 #Hyper parameter search limit
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
 
 #Create a list of study area and bind them for loop
-nsw <- st_read("./data/studyarea/state/NSW_STATE_POLYGON_shp_ex_islands_proj.shp")
-combined_bio <- st_read("./data/studyarea/Cfact_analysis_regions/Cfact_analysis_regions_prj.shp")
-bioregion <- st_read("./data/studyarea/ibra/IBRA_NSW_clipped.shp")
+
+#Specify the data path based on the system
+data.path <- case_when(
+  Sys.info()["sysname"] == "Windows" ~ "./data/",
+  #Sys.info()["sysname"] == "Darwin" ~ "mac",
+  Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/"
+)
+
+#Warning message if it can't find the directory
+if (dir.exists(data.path)){
+  print("Directory exists - process will run")
+} else {
+  string.to.print <- paste("ERROR: can't find the directory: check data path", data.path)
+  stop(string.to.print)
+}
+
+nsw <- st_read(str_c(data.path,"studyarea/state/NSW_STATE_POLYGON_shp_ex_islands_proj.shp"))
+combined_bio <- st_read(str_c(data.path,"studyarea/Cfact_analysis_regions/Cfact_analysis_regions_prj.shp"))
+bioregion <- st_read(str_c(data.path,"studyarea/ibra/IBRA_NSW_clipped.shp"))
 
 studyarea <- rbind(nsw %>% transmute(name = "state"),
                    combined_bio %>% transmute(name = combined_bio$Cfact_Regi), 
@@ -47,21 +63,6 @@ do_analysis <- function(region, agent) {
   # Start the timer
   tic("Start analysis")
   
-  #Specify the data path based on the system
-  data.path <- case_when(
-    Sys.info()["sysname"] == "Windows" ~ "./data/",
-    #Sys.info()["sysname"] == "Darwin" ~ "mac",
-    Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/"
-  )
-  
-  #Warning message if it can't find the directory
-  if (dir.exists(data.path)){
-    print("Directory exists - process will run")
-  } else {
-    string.to.print <- paste("ERROR: can't find the directory: check data path", data.path)
-    stop(string.to.print)
-  }
-
   results.path <- case_when(
     Sys.info()["sysname"] == "Windows" ~ str_c("./results/",region,"/"),
     #Sys.info()["sysname"] == "Darwin" ~ "mac",
