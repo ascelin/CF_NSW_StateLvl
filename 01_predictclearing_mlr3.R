@@ -23,7 +23,7 @@ agent <- c("agri","fores","infra","combined")
 #nsamples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
 nfolds <- 5 #CV folds
 nreps <- 2 #Number of times to repeat CV
-nmod <- 2 #Hyper parameter search limit
+nmod <- 50 #Hyper parameter search limit
 
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
 
@@ -284,7 +284,7 @@ tuner = mlr3tuning::tnr("random_search")
 # define the outer limits of the randomly selected hyper-parameters
 search_space = paradox::ps(
   # The number of trees in the model (each one built sequentially)
-  nrounds = paradox::p_int(lower = 100, upper = 300),
+  nrounds = paradox::p_int(lower = 200, upper = 300),
   # number of splits in each tree
   max_depth = paradox::p_int(lower = 1, upper = 6),
   # Learning rate - "shrinkage" - prevents overfitting
