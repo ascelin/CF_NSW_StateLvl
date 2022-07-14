@@ -16,98 +16,90 @@ required.packages <- c("sf","terra","data.table","tidyverse",
 purrr::walk(required.packages,library, character.only = T)
 
 #####User modified parameters
-
-#Select which region to model
-#regions.available <- c("state","Central West","Tablelands","Coastal","Western")
-region <- "state"
-#region <- "Coastal"
-
-#agent.available <- c("agri","fores","infra","combined")
-agent <- "agri"
+region <- c("state","Central West","Tablelands","Coastal","Western")
+agent <- c("agri","fores","infra","combined")
 
 ######### Modelling parameters #################
-
-#How many samples to take, keep increasing until there is no accuracy gain
-
-#Limit samples (no of loss and background points) for modelling
-#Now model by increasing the number of samples - increase the sample to see
-#if there will be increase in the accuracy
-
-nsamples <- 2e4
-nfolds <- 5
-nreps <- 100
-
-#Number of combinations from random grid search 
-# for different hyper-parameter combination
-nmod <- 20
-
-#Only relevant to windows and mac for now- parallel will be off for nectar
-runparallel=F
+#nsamples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
+nfolds <- 5 #CV folds
+nreps <- 2 #Number of times to repeat CV
+nmod <- 50 #Hyper parameter search limit
 
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
-#Load data-sets
+
+#Create a list of study area and bind them for loop
+nsw <- st_read("./data/studyarea/state/NSW_STATE_POLYGON_shp_ex_islands_proj.shp")
+combined_bio <- st_read("./data/studyarea/Cfact_analysis_regions/Cfact_analysis_regions_prj.shp")
+bioregion <- st_read("./data/studyarea/ibra/IBRA_NSW_clipped.shp")
+
+studyarea <- rbind(nsw %>% transmute(name = "state"),
+                   combined_bio %>% transmute(name = combined_bio$Cfact_Regi), 
+                   bioregion %>% transmute(name = bioregion$REG_NAME_7))
 
 ###### SECTION 1: DATA PREPARATION ##############
 
-#Specify the data path based on the system
-data.path <- case_when(
-  Sys.info()["sysname"] == "Windows" ~ "./data/",
-  #Sys.info()["sysname"] == "Darwin" ~ "mac",
-  Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/"
-)
+do_analysis <- function(region, agent) {
 
-if (dir.exists(data.path)){
-  print("Directory exists - process will run")
-} else {
-  string.to.print <- paste("ERROR: can't find the directory: check data path", data.path)
-  stop(string.to.print)
-}
+  # #Test
+  # region <- "Coastal"
+  # agent <- "agri"
+  
+  # Start the timer
+  tic("Start analysis")
+  
+  #Specify the data path based on the system
+  data.path <- case_when(
+    Sys.info()["sysname"] == "Windows" ~ "./data/",
+    #Sys.info()["sysname"] == "Darwin" ~ "mac",
+    Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/"
+  )
+  
+  #Warning message if it can't find the directory
+  if (dir.exists(data.path)){
+    print("Directory exists - process will run")
+  } else {
+    string.to.print <- paste("ERROR: can't find the directory: check data path", data.path)
+    stop(string.to.print)
+  }
 
-results.path <- case_when(
-  Sys.info()["sysname"] == "Windows" ~ str_c("./results/",region,"/"),
-  #Sys.info()["sysname"] == "Darwin" ~ "mac",
-  Sys.info()["sysname"] == "Linux" ~ str_c("/home/ubuntu/results/",region,"/")
-)
+  results.path <- case_when(
+    Sys.info()["sysname"] == "Windows" ~ str_c("./results/",region,"/"),
+    #Sys.info()["sysname"] == "Darwin" ~ "mac",
+    Sys.info()["sysname"] == "Linux" ~ str_c("/home/ubuntu/results/",region,"/")
+  )
 
-if (!dir.exists(results.path)){dir.create(results.path)}
+ if (!dir.exists(results.path)){dir.create(results.path)}
 
-# Start the timer
-tic("Start analysis")
+ print(str_c("Model starting for ", agent, " in ", region, " bioregion"))
 
-#Study area
+ loss.path <- dir(str_c(data.path, "loss"), full.names=T, pattern = "majorityrule")
+ cov.path <- dir(str_c(data.path, "covariates", sep=""), full.names = T, pattern = ".tif$")
 
-nsw <- st_read(str_c(data.path,"studyarea/state/NSW_STATE_POLYGON_shp_ex_islands_proj.shp"))
-bioregion <- st_read(str_c(data.path,"studyarea/Cfact_analysis_regions/Cfact_analysis_regions_prj.shp"))
+ #Remove minimum lot size from the state level as there is no data in western states
+ cov.path <- str_subset(cov.path, pattern = "minimumlotsize", negate = T)
 
-ifelse(
-  region == "Coastal",
-  roi <- bioregion %>% filter(Cfact_Regi == region),
-  roi <- nsw
-)
+ #Load BCT and WOODY DATA
+ bct <- st_read(dir(str_c(data.path,"/bct/"), full.names = T, pattern = "*.shp$"))
+ woody.private.land <- rast(dir(str_c(data.path, "woodyonprivateland", sep=""), full.names = T, pattern = ".tif$"))
 
-print(str_c("Model starting for ", region, " level analysis"))
-
-loss.path <- dir(str_c(data.path, "loss"), full.names=T, pattern = "majorityrule")
-cov.path <- dir(str_c(data.path, "covariates", sep=""), full.names = T, pattern = ".tif$")
-
-#Remove minimum lot size from the state level as there is no data in western states
-cov.path <- str_subset(cov.path, pattern = "minimumlotsize", negate = T)
-
-#Load other datasets
-bct <- st_read(dir(str_c(data.path,"/bct/"), full.names = T, pattern = "*.shp$"))
-woody.private.land <- rast(dir(str_c(data.path, "woodyonprivateland", sep=""), full.names = T, pattern = ".tif$"))
-
-  ## 1.1 Get loss raster
-loss.file <- case_when(
+ #Create a function to run analysis across the parameters
+ roi <- studyarea %>% filter(name == region)
+ 
+ ## 1.1 Get loss raster
+ loss.file <- case_when(
   agent == "agri" ~ str_subset(loss.path,"agri"),
   agent == "fores" ~ str_subset(loss.path, "fores"),
   agent == "infra" ~ str_subset(loss.path,"infra"),
   agent == "afcombined" ~ c(str_subset(loss.path,"agri"),
                             str_subset(loss.path,"fores")))
 
-loss.file <- unique(loss.file) #Remove duplicate filenames
+ loss.file <- unique(loss.file) #Remove duplicate filenames
 
-loss.raster <- rast(loss.file)
+ loss.raster <- rast(loss.file)
+
+ #Mask to the ROI 
+ loss.raster <- loss.raster %>% crop(roi)
+   
 #loss.raster[loss.raster!=1] <- NA #Turn everything except 1 to NA
 #This is not required in the new GEE state files - but if others then check this
 
@@ -121,10 +113,10 @@ ifelse(
 )
 
 # 1.2 Mask out the losses outside of the woody in the private land
-#Clip Loss Raster
-all.loss.raster <- rast(str_c(data.path,"loss/", "nsw_state_allagents_resampled100m_majorityrule.tif"))
 
-woodyonprivate <- rast(str_c(data.path, "woodyonprivateland/","woodyonprivate.tif"))
+#Clip Loss Raster
+all.losses <- rast(str_c(data.path,"loss/", "nsw_state_allagents_resampled100m_majorityrule.tif")) %>% crop(roi)
+woodyonprivate <- rast(str_c(data.path, "woodyonprivateland/","woodyonprivate.tif")) %>% crop(roi)
 
 ##1.3 Now get the training points/pixels from the loss raster
 loss.pts <- as.points(loss.raster) %>%
@@ -132,24 +124,25 @@ loss.pts <- as.points(loss.raster) %>%
   as.data.frame() %>%
   transmute(x,y)
 
+#Set n_samples to all loss points - change this if there is computational issue
+nsamples <- as.numeric(nrow(loss.pts))
+
 ###2. Collect background samples
 bg.raster <- woodyonprivate %>%
   mask(., vect(bct), inverse = T) %>%
-  mask(., all.loss.raster, inverse = T)
+  mask(., all.losses, inverse = T)
 
-##2.4 Samples to take from loss data
-no.to.sample <- case_when(
+###2.4 Samples to take from loss data
+nsamples <- case_when(
   nrow(loss.pts) < nsamples ~ nrow(loss.pts),
   TRUE ~ as.integer(nsamples)
 )
 
 loss.pts <- loss.pts %>%
-  slice_sample(n=no.to.sample)
-
-used.samples <- nrow(loss.pts)
+  slice_sample(n=nsamples)
 
 # 2.4 Take sample from the background same number
-# as the loss points # Balanced dataset #
+# as the loss points # Balanced data_set #
 
 #Terra sample selected less points - change in code behavior so
 # sample using tidyverse
@@ -164,13 +157,14 @@ used.samples <- nrow(loss.pts)
 #                      na.rm = T)
 
 set.seed = 2022
+
 bg.pts <- as.points(bg.raster) %>%
   geom() %>%
   as.data.frame() %>%
   transmute(x,y) %>%
   slice_sample(n = nrow(loss.pts))
 
-## 3. Join loss and background points
+## 3. Join loss and background points 1= loss and 0 = background
 pts <- rbind(
   loss.pts %>% mutate(loss = as.factor(1)),
   bg.pts %>% mutate(loss = as.factor(0)))
@@ -178,25 +172,24 @@ pts <- rbind(
 ##3.1 Convert to sf object
 pts <- st_as_sf(pts, coords= c("x","y"))
 
-#st_write(pts, "pts_test.shp")
-
-print(c("size of total points (loss and intact):", nrow(pts)))
-
 model.name <- str_c("roi_",region,"_",
                     "agent_",agent,"_",
-                    "samples_",nrow(pts),"_",
+                    "samples_",nrow(loss.pts),"_",
                     "cv_",nfolds,"_",
-                    "rep_",nreps)
+                    "rep_",nreps,"_",
+                    "mod_",nmod)
 
 print(str_c("Starting model:: ",model.name))
 
 ## 4.4 Covariates data
 
-covariates <- rast(cov.path)
+covariates <- rast(cov.path) 
+
+covariates <- covariates %>% crop(roi)
 
 print(str_c("No of covariates used for modelling: ", nlyr(covariates)))
 
-#extract names from filenames
+#extract names from file_names
 
 good.names <- str_extract(cov.path,pattern = "(?<=_)[^.]*(?=.)")
 good.names
@@ -269,7 +262,7 @@ set_threads(learner, n = availableCores())
 perf.level = mlr3::rsmp("repeated_spcv_coords", folds = nfolds, repeats = nreps)
 
 #Create an inner level resampling strategy
-tune.level = mlr3::rsmp("spcv_coords", folds = 5)
+tune.level = mlr3::rsmp("spcv_coords", folds = nfolds)
 
 cvplot = autoplot(tune.level, task, c(1, 2, 3, 4, 5),
                   crs = 3577, point_size = 3, axis_label_fontsize = 10,
@@ -278,7 +271,7 @@ cvplot = autoplot(tune.level, task, c(1, 2, 3, 4, 5),
 
 #cvplot
 
-ggsave(str_c(results.path,"spatialcv.png"), cvplot, bg="white")
+ggsave(str_c(results.path,model.name,"_spatialcv.png"), cvplot, bg="white")
 
 ##specify the budget available for tuning - we use
 ##terminate after a given number of iterations of hyper-parameter combinations
@@ -301,7 +294,7 @@ search_space = paradox::ps(
   lambda = paradox::p_dbl(lower = -1, upper = 0, trafo = function(x) 10^x))
 
 #Tuner for re-sampling only
-at_xgboost_resample <- mlr3tuning::AutoTuner$new(
+at_resample <- mlr3tuning::AutoTuner$new(
   learner = learner,
   resampling = tune.level,
   measure = mlr3::msr("classif.auc"),
@@ -320,25 +313,34 @@ at_xgboost_resample <- mlr3tuning::AutoTuner$new(
 
 #
 # progressr::with_progress(expr = {
+
 resampled = mlr3::resample(task = task,
-                           learner = at_xgboost_resample,
+                           learner = at_resample,
                            # outer resampling (performance level)
                            resampling = perf.level,
                            store_models = F,
                            encapsulate = "evaluate")
-# 
+
 # saveRDS(resampled, str_c(results.path,"resampled.Rds"))
 # 
 # future:::ClusterRegistry("stop")
 # # compute the AUROC as a data.table
-auc.score <- resampled $score(
+auc <- resampled$score(
   measure = mlr3::msr("classif.auc")) %>%
   as.data.frame() %>%
-  dplyr::select(task_id, learner_id, resampling_id, classif.auc)
+  ggplot() +
+  geom_histogram(aes(x = classif.auc, y = (..count..)/sum(..count..)),
+                 bins = 20, fill = "turquoise4", colour = "gray") +
+  geom_vline(
+    data = auc.score %>% summarise(m = mean(auc.score$classif.auc)),
+    aes(xintercept = m), linetype="dotted", col = "black", size = 2)+
+  theme_minimal() +
+  xlab("AUC values") +
+  ylab("Relative frequency")+
+  theme(text = element_text(size = 20),
+        plot.title = element_text(hjust = -0.5))
 
-# 
-hist(auc.score$classif.auc)
-mean(auc.score$classif.auc)
+ggsave(str_c(results.path,model.name,"_auc.png"), auc, bg="white")
 
 #Get the models from the resampled data
 #boot.models <- mlr3misc::map(as.data.table(resampled)$learner, "learner")
@@ -360,11 +362,12 @@ mean(auc.score$classif.auc)
 # all the data # We don't need the inner re sampling here
 # With hyper-parameters combinations there will be 5 * 50 = 250 models here
 
-autotuner.xg = mlr3tuning::AutoTuner$new(
+at_main = mlr3tuning::AutoTuner$new(
   learner = learner,
-  resampling = mlr3::rsmp("spcv_coords", folds = 5), # spatial partitioning
+  resampling = mlr3::rsmp("spcv_coords", folds = nfolds), # spatial partitioning
   measure = mlr3::msr("classif.auc"), # performance measure
   search_space = search_space, # predefined hyper-parameter search space
+  store_models = T,
   terminator = mlr3tuning::trm("evals", n_evals = nmod), # specify 50 iterations
   tuner = mlr3tuning::tnr("random_search") # specify random search
 )
@@ -373,7 +376,7 @@ autotuner.xg = mlr3tuning::AutoTuner$new(
 set.seed(2022)
 
 #Auto-tune a model
-tuned.model = autotuner.xg$train(task)
+tuned.model = at_main$train(task)
 
 #VIP plot
 vip <- tuned.model$learner$importance() %>%
@@ -382,11 +385,13 @@ vip <- tuned.model$learner$importance() %>%
   set_names("variable","importance") %>%
   ggplot(aes(reorder(variable,importance),importance))+
   geom_bar(stat = "identity")+
-  coord_flip()
+  labs(y = "Variable importance", x = "")+
+  coord_flip()+
+  theme_minimal()
 
 vip
 
-ggsave(str_c(results.path,"vip.png"), vip, bg="white")
+ggsave(str_c(results.path,model.name,"_vip.png"), vip, bg="white")
 
 #Don't run model interpretation now
 #################### Model interpretation ##############################
@@ -425,12 +430,46 @@ pfmlr = function(model, ...) {
 
 #Make prediction
 pred <- terra::predict(covariates, tuned.model, fun = pfmlr, na.rm = TRUE)
-pred <- round(pred, 2)
-writeRaster(pred, str_c(results.path,"predrisk",".tif"),overwrite=T)
+pred <- round(pred, 5)
+writeRaster(pred, str_c(results.path,model.name, "_predrisk",".tif"),overwrite=T)
+
+toc(log = TRUE, quiet = TRUE)
+log.txt <- unlist(tic.log(format = T))
+tic.clearlog()
+
+#Save all model details in a dataframe
+model_details <- data.frame(
+  roi = "state",
+  samples = nsamples,
+  totalloss_pixels = nrow(loss.pts),
+  cv = nfolds,
+  mods = nmod,
+  rep = nreps,
+  agent = agent,
+  time = log.txt)
+
+write.csv(model_details, str_c(results.path, model.name,"_modeltime.csv"))
 
 gc()
 
-toc()
+}
+
+#Run the function over the list
+
+## Get a list of all combinations to arrange by agent type
+
+#Only state; 4 combined regions, and 2 bioregions
+
+df.list <- crossing(studyarea$name,agent) %>%
+            set_names("region", "agent") %>%
+            filter(region %in% c("state","NSW North Coast","NSW South Western Slopes",
+                                 combined_bio$Cfact_Regi)) %>%
+            arrange(agent)
+
+pwalk(list(
+  region = df.list$region,
+  agent = df.list$agent),
+  .f=do_analysis)
 
 #New predict data
 # newdata = as.data.frame(as.matrix(covariates))
