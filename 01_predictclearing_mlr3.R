@@ -19,11 +19,15 @@ purrr::walk(required.packages,library, character.only = T)
 region <- c("state","Central West","Tablelands","Coastal","Western")
 agent <- c("agri","fores","infra","combined")
 
+#For testing
+# region <- "state"
+# agent <- "agri"
+
 ######### Modelling parameters #################
 #nsamples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
 nfolds <- 5 #CV folds
 nreps <- 2 #Number of times to repeat CV
-nmod <- 50 #Hyper parameter search limit
+nmod <- 2 #Hyper parameter search limit
 
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
 
@@ -71,8 +75,8 @@ do_analysis <- function(region, agent) {
 
  if (!dir.exists(results.path)){dir.create(results.path)}
 
- print(str_c("Model starting for ", agent, " in ", region, " bioregion"))
-
+ print(str_c("Preparing data to run ", agent, " in ", region, " bioregion"))
+  
  loss.path <- dir(str_c(data.path, "loss"), full.names=T, pattern = "majorityrule")
  cov.path <- dir(str_c(data.path, "covariates", sep=""), full.names = T, pattern = ".tif$")
 
@@ -98,9 +102,13 @@ do_analysis <- function(region, agent) {
 
  loss.raster <- rast(loss.file)
 
- #Mask to the ROI 
- loss.raster <- loss.raster %>% crop(roi)
-   
+ #Crop to the ROI only if it is not a state model
+ ifelse(
+   region == "state",
+   loss.raster,
+   loss.raster <- loss.raster %>% crop(roi)
+ )
+ 
 #loss.raster[loss.raster!=1] <- NA #Turn everything except 1 to NA
 #This is not required in the new GEE state files - but if others then check this
 
@@ -116,8 +124,21 @@ ifelse(
 # 1.2 Mask out the losses outside of the woody in the private land
 
 #Clip Loss Raster
-all.losses <- rast(str_c(data.path,"loss/", "nsw_state_allagents_resampled100m_majorityrule.tif")) %>% crop(roi)
-woodyonprivate <- rast(str_c(data.path, "woodyonprivateland/","woodyonprivate.tif")) %>% crop(roi)
+all.losses <- rast(str_c(data.path,"loss/", "nsw_state_allagents_resampled100m_majorityrule.tif")) 
+
+ifelse(
+  region == "state",
+  all.losses,
+  all.losses <- all.losses %>% crop(roi)
+)
+
+woodyonprivate <- rast(str_c(data.path, "woodyonprivateland/","woodyonprivate.tif"))
+
+ifelse(
+  region == "state",
+  woodyonprivate,
+  woodyonprivate <- woodyonprivate %>% crop(roi)
+)
 
 ##1.3 Now get the training points/pixels from the loss raster
 loss.pts <- as.points(loss.raster) %>%
@@ -186,7 +207,11 @@ print(str_c("Starting model:: ",model.name))
 
 covariates <- rast(cov.path) 
 
-covariates <- covariates %>% crop(roi)
+ifelse(
+  region == "state",
+  covariates,
+  covariates <- covariates %>% crop(roi)
+)
 
 print(str_c("No of covariates used for modelling: ", nlyr(covariates)))
 
@@ -226,6 +251,7 @@ df <- terra::extract(covariates,vect(pts), xy=T) %>%
 #coords <- df[ , c("lon","lat")]
 
 ################# STEP 2: MODELLING SECTION ###########################
+print(str_c("Model training starting for ", agent, " in ", region, " bioregion"))
 
 ## Step 2.1 Create a classification task
 
@@ -243,7 +269,13 @@ task = mlr3spatiotempcv::TaskClassifST$new(
 levs = levels(task$truth())
 
 ## Step 2.2 Choose a learner and set predict output in probability
-learner = mlr3::lrn("classif.xgboost", predict_type = "prob")
+learner = mlr3::lrn("classif.xgboost",
+                    #booster = "gbtree",
+                    predict_type = "prob")
+                    #tree_method = "hist")
+
+##Supposedly, specifying booster=gbtree and tree_method = "hist" in the learner was going to run xgboost faster
+#tried on my laptop but it made the run slower, perhaps with GPU you can use "gpu_hist" sometime in the future
 
 #To make sure the tuning doesn't stop if any model fails
 learner$fallback = lrn("classif.xgboost", predict_type = "prob")
@@ -272,7 +304,7 @@ cvplot = autoplot(tune.level, task, c(1, 2, 3, 4, 5),
 
 #cvplot
 
-#ggsave(str_c(results.path,model.name,"_spatialcv.png"), cvplot, bg="white")
+ggsave(str_c(results.path,model.name,"_spatialcv.png"), cvplot, bg="white")
 
 ##specify the budget available for tuning - we use
 ##terminate after a given number of iterations of hyper-parameter combinations
@@ -284,14 +316,16 @@ tuner = mlr3tuning::tnr("random_search")
 # define the outer limits of the randomly selected hyper-parameters
 search_space = paradox::ps(
   # The number of trees in the model (each one built sequentially)
-  nrounds = paradox::p_int(lower = 200, upper = 300),
+  nrounds = paradox::p_int(lower = 100, upper = 300),
   # number of splits in each tree
-  max_depth = paradox::p_int(lower = 1, upper = 6),
-  # Learning rate - "shrinkage" - prevents overfitting
+  max_depth = paradox::p_int(lower = 3, upper = 5),
+  # Learning rate - "shrinkage" - prevents over-fitting
   eta = paradox::p_dbl(lower = .1, upper = .4),
+  #regularizes by limiting the depth of trees, which helps prevent over-fitting
   min_child_weight = paradox::p_dbl(lower = 1, upper =10),
   colsample_bytree = paradox::p_dbl(lower = 0.5, upper =1),
   subsample = paradox::p_dbl(lower = 0.5, upper =1),
+  #L2 regularization term on weights
   lambda = paradox::p_dbl(lower = -1, upper = 0, trafo = function(x) 10^x))
 
 #Tuner for re-sampling only
@@ -323,12 +357,14 @@ resampled = mlr3::resample(task = task,
                            encapsulate = "evaluate")
 
 # saveRDS(resampled, str_c(results.path,"resampled.Rds"))
-# 
+
 # future:::ClusterRegistry("stop")
 # # compute the AUROC as a data.table
 auc <- resampled$score(
   measure = mlr3::msr("classif.auc")) %>%
-  as.data.frame() 
+  as.data.frame()
+
+auc.mean <- mean(auc$classif.auc, na.rm=T)
 
 auc_plot <- auc %>%
   ggplot() +
@@ -365,36 +401,36 @@ ggsave(str_c(results.path,model.name,"_auc.png"), auc_plot, bg="white")
 # all the data # We don't need the inner re sampling here
 # With hyper-parameters combinations there will be 5 * 50 = 250 models here
 # 
-# at_main = mlr3tuning::AutoTuner$new(
-#   learner = learner,
-#   resampling = mlr3::rsmp("spcv_coords", folds = nfolds), # spatial partitioning
-#   measure = mlr3::msr("classif.auc"), # performance measure
-#   search_space = search_space, # predefined hyper-parameter search space
-#   store_models = T,
-#   terminator = mlr3tuning::trm("evals", n_evals = nmod), # specify 50 iterations
-#   tuner = mlr3tuning::tnr("random_search") # specify random search
-# )
+at_main = mlr3tuning::AutoTuner$new(
+  learner = learner,
+  resampling = mlr3::rsmp("spcv_coords", folds = nfolds), # spatial partitioning
+  measure = mlr3::msr("classif.auc"), # performance measure
+  search_space = search_space, # predefined hyper-parameter search space
+  store_models = T,
+  terminator = mlr3tuning::trm("evals", n_evals = nmod), # specify 50 iterations
+  tuner = mlr3tuning::tnr("random_search") # specify random search
+)
 # 
 # # hyper-parameter tuning
-# set.seed(2022)
-# 
-# #Auto-tune a model
-# tuned.model = at_main$train(task)
+set.seed(2022)
+
+#Auto-tune a model
+tuned.model = at_main$train(task)
 # 
 # #VIP plot
-# vip <- tuned.model$learner$importance() %>%
-#   as.data.frame() %>%
-#   rownames_to_column() %>%
-#   set_names("variable","importance") %>%
-#   ggplot(aes(reorder(variable,importance),importance))+
-#   geom_bar(stat = "identity")+
-#   labs(y = "Variable importance", x = "")+
-#   coord_flip()+
-#   theme_minimal()
+vip <- tuned.model$learner$importance() %>%
+  as.data.frame() %>%
+  rownames_to_column() %>%
+  set_names("variable","importance") %>%
+  ggplot(aes(reorder(variable,importance),importance))+
+  geom_bar(stat = "identity")+
+  labs(y = "Variable importance", x = "")+
+  coord_flip()+
+  theme_minimal()
 # 
 # vip
 # 
-# ggsave(str_c(results.path,model.name,"_vip.png"), vip, bg="white")
+ggsave(str_c(results.path, model.name,"_vip.png"), vip, bg="white")
 
 #Don't run model interpretation now
 #################### Model interpretation ##############################
@@ -449,6 +485,8 @@ model_details <- data.frame(
   mods = nmod,
   rep = nreps,
   agent = agent,
+  auc_mean = auc.mean,
+  auc_dist = I(list(auc$classif.auc)),
   time = log.txt)
 
 write.csv(model_details, str_c(results.path, model.name,"_modeltime.csv"))
@@ -472,7 +510,7 @@ df.list <- crossing(studyarea$name,agent) %>%
 pwalk(list(
   region = df.list$region,
   agent = df.list$agent),
-  .f=do_analysis)
+  possibly(do_analysis, print("Error"),quiet=T))
 
 #New predict data
 # newdata = as.data.frame(as.matrix(covariates))
