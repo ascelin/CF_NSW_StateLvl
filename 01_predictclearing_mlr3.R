@@ -27,7 +27,7 @@ agent <- c("agri","fores","infra","combined")
 #nsamples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
 nfolds <- 5 #CV folds
 nreps <- 2 #Number of times to repeat CV
-nmod <- 2 #Hyper parameter search limit
+nmod <- 50 #Hyper parameter search limit
 
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
 
@@ -201,8 +201,6 @@ model.name <- str_c("roi_",region,"_",
                     "rep_",nreps,"_",
                     "mod_",nmod)
 
-print(str_c("Starting model:: ",model.name))
-
 ## 4.4 Covariates data
 
 covariates <- rast(cov.path) 
@@ -229,6 +227,10 @@ df <- terra::extract(covariates,vect(pts), xy=T) %>%
   mutate(loss = as.factor(pts$loss)) %>%
   dplyr::select(-ID)%>% #At this step check which points have NA -
   drop_na() #mlr doesn't take na so remove if any column has NA
+
+unique(df$forestryapprovals)
+
+print(str_c("Data preparation complete for model:: ",model.name))
 
 # #Plot the distribution of data
 # df_long <- df %>% pivot_longer(
@@ -269,10 +271,10 @@ task = mlr3spatiotempcv::TaskClassifST$new(
 levs = levels(task$truth())
 
 ## Step 2.2 Choose a learner and set predict output in probability
-learner = mlr3::lrn("classif.xgboost",
-                    #booster = "gbtree",
-                    predict_type = "prob")
-                    #tree_method = "hist")
+learner = mlr3::lrn("classif.xgboost",predict_type = "prob")
+
+#booster = "gbtree",
+#tree_method = "hist")
 
 ##Supposedly, specifying booster=gbtree and tree_method = "hist" in the learner was going to run xgboost faster
 #tried on my laptop but it made the run slower, perhaps with GPU you can use "gpu_hist" sometime in the future
@@ -505,10 +507,10 @@ df.list <- crossing(studyarea$name,agent) %>%
                                  combined_bio$Cfact_Regi)) %>%
             arrange(agent)
 
-pwalk(list(
+purrr::pwalk(list(
   region = df.list$region,
   agent = df.list$agent),
-  possibly(do_analysis, print("Error"),quiet=T))
+  .f = do_analysis)
 
 #New predict data
 # newdata = as.data.frame(as.matrix(covariates))
