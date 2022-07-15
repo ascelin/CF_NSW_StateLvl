@@ -318,14 +318,12 @@ search_space = paradox::ps(
   # The number of trees in the model (each one built sequentially)
   nrounds = paradox::p_int(lower = 100, upper = 300),
   # number of splits in each tree
-  max_depth = paradox::p_int(lower = 3, upper = 5),
-  # Learning rate - "shrinkage" - prevents over-fitting
+  max_depth = paradox::p_int(lower = 1, upper = 6),
+  # Learning rate - "shrinkage" - prevents overfitting
   eta = paradox::p_dbl(lower = .1, upper = .4),
-  #regularizes by limiting the depth of trees, which helps prevent over-fitting
   min_child_weight = paradox::p_dbl(lower = 1, upper =10),
   colsample_bytree = paradox::p_dbl(lower = 0.5, upper =1),
   subsample = paradox::p_dbl(lower = 0.5, upper =1),
-  #L2 regularization term on weights
   lambda = paradox::p_dbl(lower = -1, upper = 0, trafo = function(x) 10^x))
 
 #Tuner for re-sampling only
