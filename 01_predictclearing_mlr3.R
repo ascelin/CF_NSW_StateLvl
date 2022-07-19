@@ -67,8 +67,8 @@ studyarea <- rbind(nsw %>% transmute(name = "state"),
 do_analysis <- function(region, agent) {
 
   # #Test
-  # region <- "Coastal"
-  # agent <- "agri"
+  # region <- "Central West"
+  # agent <- "combined"
   
   # Start the timer
   tic("Start analysis")
@@ -101,7 +101,7 @@ do_analysis <- function(region, agent) {
   agent == "agri" ~ str_subset(loss.path,"agri"),
   agent == "fores" ~ str_subset(loss.path, "fores"),
   agent == "infra" ~ str_subset(loss.path,"infra"),
-  agent == "afcombined" ~ c(str_subset(loss.path,"agri"),
+  agent == "combined" ~ c(str_subset(loss.path,"agri"),
                             str_subset(loss.path,"fores")))
 
  loss.file <- unique(loss.file) #Remove duplicate filenames
@@ -526,7 +526,9 @@ df.list <- crossing(studyarea$name,agent) %>%
 purrr::pwalk(list(
   region = df.list$region,
   agent = df.list$agent),
-  .f = do_analysis)
+  .f = possibly(do_analysis, 
+                print("This model didn't run check error"), 
+                quiet =T))
 
 #New predict data
 # newdata = as.data.frame(as.matrix(covariates))
