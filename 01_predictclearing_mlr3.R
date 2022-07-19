@@ -156,6 +156,7 @@ loss.pts <- as.points(loss.raster) %>%
   as.data.frame() %>%
   transmute(x,y)
 
+totallosspts <- nrow(loss.pts)
 #Set n_samples to all loss points - change this if there is computational issue
 #nsamples <- as.numeric(nrow(loss.pts))
 
@@ -174,7 +175,6 @@ nsamples <- case_when(
 )
 
 #nsamples <- nsamples * proportion_sample
-
 
 loss.pts <- loss.pts %>%
   slice_sample(n=nsamples)
@@ -496,7 +496,7 @@ tic.clearlog()
 model_details <- data.frame(
   roi = region,
   samples = nsamples,
-  totalloss_pixels = nrow(loss.pts),
+  totalloss_pixels = totallosspts,
   cv = nfolds,
   mods = nmod,
   rep = nreps,
