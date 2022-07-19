@@ -24,7 +24,8 @@ agent <- c("agri","fores","infra","combined")
 # agent <- "agri"
 
 ######### Modelling parameters #################
-#nsamples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
+
+#n-samples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
 nfolds <- 5 #CV folds
 nreps <- 2 #Number of times to repeat CV
 nmod <- 50 #Hyper parameter search limit
@@ -57,6 +58,9 @@ studyarea <- rbind(nsw %>% transmute(name = "state"),
                    bioregion %>% transmute(name = bioregion$REG_NAME_7))
 
 ###### SECTION 1: DATA PREPARATION ##############
+
+# region <- "Coastal"
+# agent <- "agri"
 
 do_analysis <- function(region, agent) {
 
@@ -106,7 +110,7 @@ do_analysis <- function(region, agent) {
  ifelse(
    region == "state",
    loss.raster,
-   loss.raster <- loss.raster %>% crop(roi)
+   loss.raster <- loss.raster %>% crop(roi) %>% mask(vect(roi))
  )
  
 #loss.raster[loss.raster!=1] <- NA #Turn everything except 1 to NA
@@ -129,7 +133,7 @@ all.losses <- rast(str_c(data.path,"loss/", "nsw_state_allagents_resampled100m_m
 ifelse(
   region == "state",
   all.losses,
-  all.losses <- all.losses %>% crop(roi)
+  all.losses <- all.losses %>% crop(roi) %>% mask(vect(roi))
 )
 
 woodyonprivate <- rast(str_c(data.path, "woodyonprivateland/","woodyonprivate.tif"))
@@ -137,10 +141,14 @@ woodyonprivate <- rast(str_c(data.path, "woodyonprivateland/","woodyonprivate.ti
 ifelse(
   region == "state",
   woodyonprivate,
-  woodyonprivate <- woodyonprivate %>% crop(roi)
+  woodyonprivate <- woodyonprivate %>% crop(roi) %>% mask(vect(roi))
 )
 
 ##1.3 Now get the training points/pixels from the loss raster
+# loss.raster <- loss.raster %>% 
+#   crop(roi) %>%
+#   mask(vect(roi))
+
 loss.pts <- as.points(loss.raster) %>%
   geom() %>%
   as.data.frame() %>%
@@ -149,7 +157,7 @@ loss.pts <- as.points(loss.raster) %>%
 #Set n_samples to all loss points - change this if there is computational issue
 nsamples <- as.numeric(nrow(loss.pts))
 
-###2. Collect background samples
+## 2. Collect background samples
 bg.raster <- woodyonprivate %>%
   mask(., vect(bct), inverse = T) %>%
   mask(., all.losses, inverse = T)
@@ -159,6 +167,8 @@ nsamples <- case_when(
   nrow(loss.pts) < nsamples ~ nrow(loss.pts),
   TRUE ~ as.integer(nsamples)
 )
+
+nsamples <- nsamples
 
 loss.pts <- loss.pts %>%
   slice_sample(n=nsamples)
@@ -208,7 +218,7 @@ covariates <- rast(cov.path)
 ifelse(
   region == "state",
   covariates,
-  covariates <- covariates %>% crop(roi)
+  covariates <- covariates %>% crop(roi) %>% mask(vect(roi))
 )
 
 print(str_c("No of covariates used for modelling: ", nlyr(covariates)))
@@ -478,7 +488,7 @@ tic.clearlog()
 
 #Save all model details in a dataframe
 model_details <- data.frame(
-  roi = "state",
+  roi = region,
   samples = nsamples,
   totalloss_pixels = nrow(loss.pts),
   cv = nfolds,
