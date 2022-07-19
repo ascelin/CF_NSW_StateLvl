@@ -26,9 +26,11 @@ agent <- c("agri","fores","infra","combined")
 ######### Modelling parameters #################
 
 #n-samples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
+
 nfolds <- 5 #CV folds
 nreps <- 2 #Number of times to repeat CV
-nmod <- 50 #Hyper parameter search limit
+nmod <- 20 #Hyper parameter search limit
+proportion_sample <- 0.2
 
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
 
@@ -155,7 +157,7 @@ loss.pts <- as.points(loss.raster) %>%
   transmute(x,y)
 
 #Set n_samples to all loss points - change this if there is computational issue
-nsamples <- as.numeric(nrow(loss.pts))
+#nsamples <- as.numeric(nrow(loss.pts))
 
 ## 2. Collect background samples
 bg.raster <- woodyonprivate %>%
@@ -163,12 +165,16 @@ bg.raster <- woodyonprivate %>%
   mask(., all.losses, inverse = T)
 
 ###2.4 Samples to take from loss data
+
+nsamples <- 1000
+
 nsamples <- case_when(
   nrow(loss.pts) < nsamples ~ nrow(loss.pts),
   TRUE ~ as.integer(nsamples)
 )
 
-nsamples <- nsamples
+#nsamples <- nsamples * proportion_sample
+
 
 loss.pts <- loss.pts %>%
   slice_sample(n=nsamples)
