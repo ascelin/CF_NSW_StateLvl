@@ -36,7 +36,7 @@ nmod <- 50 #Hyper parameter search limit
 #Specify the data path based on the system
 data.path <- case_when(
   Sys.info()["sysname"] == "Windows" ~ "./data/",
-  #Sys.info()["sysname"] == "Darwin" ~ "mac",
+  Sys.info()["sysname"] == "Darwin" ~ "/Users/ascelin/tmp/NSW_cfac/data/",
   Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/"
 )
 
@@ -69,7 +69,7 @@ do_analysis <- function(region, agent) {
   
   results.path <- case_when(
     Sys.info()["sysname"] == "Windows" ~ str_c("./results/",region,"/"),
-    #Sys.info()["sysname"] == "Darwin" ~ "mac",
+    Sys.info()["sysname"] == "Darwin" ~ str_c("/Users/ascelin/tmp/NSW_cfac/results/",region,"/"),
     Sys.info()["sysname"] == "Linux" ~ str_c("/home/ubuntu/results/",region,"/")
   )
 
