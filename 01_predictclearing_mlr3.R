@@ -17,18 +17,17 @@ purrr::walk(required.packages,library, character.only = T)
 
 #####User modified parameters
 region <- c("state","Central West","Tablelands","Coastal","Western")
-agent <- c("agri","fores","infra","combined")
+agent <- c("agri","fores","infra","af","afi")
 
 #For testing
 # region <- "state"
 # agent <- "agri"
 
 ######### Modelling parameters #################
-
 #n-samples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
 
 nfolds <- 5 #CV folds
-nreps <- 2 #Number of times to repeat CV
+nreps <- 50 #Number of times to repeat CV
 nmod <- 20 #Hyper parameter search limit
 proportion_sample <- 0.2
 
@@ -68,7 +67,7 @@ do_analysis <- function(region, agent) {
 
   # #Test
   # region <- "Central West"
-  # agent <- "combined"
+  # agent <- "af"
   
   # Start the timer
   tic("Start analysis")
@@ -83,7 +82,7 @@ do_analysis <- function(region, agent) {
 
  print(str_c("Preparing data to run ", agent, " in ", region, " bioregion"))
   
- loss.path <- dir(str_c(data.path, "loss"), full.names=T, pattern = "majorityrule")
+ loss.path <- dir(str_c(data.path, "loss"), full.names=T, pattern = "majorityrule.tif$")
  cov.path <- dir(str_c(data.path, "covariates", sep=""), full.names = T, pattern = ".tif$")
 
  #Remove minimum lot size from the state level as there is no data in western states
@@ -96,17 +95,26 @@ do_analysis <- function(region, agent) {
  #Create a function to run analysis across the parameters
  roi <- studyarea %>% filter(name == region)
  
+ region <- "state"
+ agent <- "afi"
+ 
  ## 1.1 Get loss raster
  loss.file <- case_when(
-  agent == "agri" ~ str_subset(loss.path,"agri"),
-  agent == "fores" ~ str_subset(loss.path, "fores"),
-  agent == "infra" ~ str_subset(loss.path,"infra"),
-  agent == "combined" ~ c(str_subset(loss.path,"agri"),
-                            str_subset(loss.path,"fores")))
-
+  agent == "agri" ~ list(str_subset(loss.path,"agri")),
+  agent == "fores" ~ list(str_subset(loss.path, "fores")),
+  agent == "infra" ~ list(str_subset(loss.path,"infra")),
+  agent == "af" ~ list(c(str_subset(loss.path,"agri"),
+                    str_subset(loss.path,"fores"))),
+  agent == "afi" ~ list(c(str_subset(loss.path,"agri"),
+                    str_subset(loss.path,"fores"),
+                    str_subset(loss.path,"infra"))))
+ 
+ loss.file <- unlist(loss.file)
  loss.file <- unique(loss.file) #Remove duplicate filenames
-
- loss.raster <- rast(loss.file)
+ loss.raster <- map(loss.file, rast)
+ 
+ #Merge the files in the raster
+ loss.raster <- do.call(merge, loss.raster)
 
  #Crop to the ROI only if it is not a state model
  ifelse(
@@ -117,15 +125,6 @@ do_analysis <- function(region, agent) {
  
 #loss.raster[loss.raster!=1] <- NA #Turn everything except 1 to NA
 #This is not required in the new GEE state files - but if others then check this
-
-#If there is agri and forestry then merge them into 1 file for combined loss
-#if else(condition,true,false)
-
-ifelse(
-  nlyr(loss.raster) > 1, 
-  loss.raster <- merge(loss.raster[[1]],loss.raster[[2]]),
-  loss.raster
-)
 
 # 1.2 Mask out the losses outside of the woody in the private land
 
@@ -299,7 +298,7 @@ learner = mlr3::lrn("classif.xgboost",predict_type = "prob")
 learner$fallback = lrn("classif.xgboost", predict_type = "prob")
 
 #set to use 4 CPUs
-set_threads(learner, n = availableCores())
+set_threads(learner, n = availableCores()-5)
 
 #Check the parameters you can set
 # learner$param_set$ids()
@@ -505,7 +504,7 @@ model_details <- data.frame(
   auc_dist = I(list(auc$classif.auc)),
   time = log.txt)
 
-write.csv(model_details, str_c(results.path, model.name,"_modeltime.csv"))
+saveRDS(model_details, str_c(results.path, model.name,"_modeltime.rds"))
 
 gc()
 
