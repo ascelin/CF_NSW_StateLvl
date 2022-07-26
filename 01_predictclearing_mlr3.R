@@ -298,7 +298,7 @@ learner = mlr3::lrn("classif.xgboost",predict_type = "prob")
 learner$fallback = lrn("classif.xgboost", predict_type = "prob")
 
 #set to use 4 CPUs
-set_threads(learner, n = availableCores()-5)
+set_threads(learner, n = availableCores()/2)
 
 #Check the parameters you can set
 # learner$param_set$ids()
