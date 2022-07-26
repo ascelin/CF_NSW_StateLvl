@@ -27,7 +27,7 @@ agent <- c("agri","fores","infra","af","afi")
 #n-samples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
 
 nfolds <- 5 #CV folds
-nreps <- 100 #Number of times to repeat CV
+nreps <- 20 #Number of times to repeat CV
 nmod <- 20 #Hyper parameter search limit
 proportion_sample <- 0.2
 
