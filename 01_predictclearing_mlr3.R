@@ -8,12 +8,25 @@ project.crs <- 'EPSG:3577'
 project.res <- 100
 
 #Load required libraries
-required.packages <- c("sf","terra","data.table","tidyverse",
-                       "mlr3","mlr3learners","mlr3spatiotempcv",
-                       "mlr3viz","mlr3tuning","iml","future","furrr",
-                       "purrr","xgboost","lattice","tictoc","scico","ggtext")
+packages <- c("sf","terra","data.table","tidyverse",
+              "mlr3","mlr3learners","mlr3viz","mlr3tuning",
+              "iml","future","furrr","purrr","xgboost",
+              "lattice","tictoc","scico","ggtext","mlr3spatiotempcv")
 
-purrr::walk(required.packages,library, character.only = T)
+#Install the old version of mlr3spatitempcv manually#
+if(!require(devtools)) install.packages("devtools")
+library(devtools)
+if (!require("mlr3spatiotempcv")) install_version("mlr3spatiotempcv", 
+                                                  version = "1.0.1", 
+                                                  repos = "http://cran.us.r-project.org")
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+#Load the packages
+lapply(packages, require, character.only=TRUE)
 
 #####User modified parameters
 region <- c("state","Central West","Tablelands","Coastal","Western")
