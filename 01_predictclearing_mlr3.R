@@ -108,9 +108,6 @@ do_analysis <- function(region, agent) {
  #Create a function to run analysis across the parameters
  roi <- studyarea %>% filter(name == region)
  
- region <- "state"
- agent <- "afi"
- 
  ## 1.1 Get loss raster
  loss.file <- case_when(
   agent == "agri" ~ list(str_subset(loss.path,"agri")),
