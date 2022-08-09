@@ -15,12 +15,17 @@ library(devtools)
 if (!require("mlr3spatiotempcv")) install_version("mlr3spatiotempcv", 
                                                   version = "1.0.1", 
                                                   repos = "http://cran.us.r-project.org")
-# Install packages not yet installed
+Install packages not yet installed
+
+```
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
   install.packages(packages[!installed_packages])
 }
+```
 
-#Load the packages
+Load the packages
+
+```
 lapply(packages, require, character.only=TRUE)
-
+```
