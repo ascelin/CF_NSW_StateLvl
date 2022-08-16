@@ -28,20 +28,12 @@ if (any(installed_packages == FALSE)) {
 #Load the packages
 lapply(packages, require, character.only=TRUE)
 
-#####User modified parameters
-region <- c("state","Central West","Tablelands","Coastal","Western")
-agent <- c("agri","fores","infra","af","afi")
-
-#For testing
-# region <- "state"
-# agent <- "agri"
-
 ######### Modelling parameters #################
 #n-samples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
 
 nfolds <- 5 #CV folds
-nreps <- 20 #Number of times to repeat CV
-nmod <- 20 #Hyper parameter search limit
+nreps <- 10 #Number of times to repeat CV
+nmod <- 50 #Hyper parameter search limit
 proportion_sample <- 0.2
 
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
@@ -73,15 +65,7 @@ studyarea <- rbind(nsw %>% transmute(name = "state"),
 
 ###### SECTION 1: DATA PREPARATION ##############
 
-# region <- "Coastal"
-# agent <- "agri"
-
 do_analysis <- function(region, agent) {
-
-  # #Test
-  # region <- "Central West"
-  # agent <- "af"
-  
   # Start the timer
   tic("Start analysis")
   
@@ -95,7 +79,7 @@ do_analysis <- function(region, agent) {
 
  print(str_c("Preparing data to run ", agent, " in ", region, " bioregion"))
   
- loss.path <- dir(str_c(data.path, "loss"), full.names=T, pattern = "majorityrule.tif$")
+ loss.path <- dir(str_c(data.path, "loss"), full.names=T, pattern = "majorityrule_post2015.tif$")
  cov.path <- dir(str_c(data.path, "covariates", sep=""), full.names = T, pattern = ".tif$")
 
  #Remove minimum lot size from the state level as there is no data in western states
@@ -167,23 +151,18 @@ loss.pts <- as.points(loss.raster) %>%
 
 totallosspts <- nrow(loss.pts)
 #Set n_samples to all loss points - change this if there is computational issue
-#nsamples <- as.numeric(nrow(loss.pts))
 
-## 2. Collect background samples
-bg.raster <- woodyonprivate %>%
-  mask(., vect(bct), inverse = T) %>%
-  mask(., all.losses, inverse = T)
-
-###2.4 Samples to take from loss data
-
-nsamples <- 1000
+nsamples <- as.numeric(nrow(loss.pts))
 
 nsamples <- case_when(
   nrow(loss.pts) < nsamples ~ nrow(loss.pts),
   TRUE ~ as.integer(nsamples)
 )
 
-#nsamples <- nsamples * proportion_sample
+## 2. Collect background samples
+bg.raster <- woodyonprivate %>%
+  mask(., vect(bct), inverse = T) %>%
+  mask(., all.losses, inverse = T)
 
 loss.pts <- loss.pts %>%
   slice_sample(n=nsamples)
@@ -239,9 +218,9 @@ ifelse(
 print(str_c("No of covariates used for modelling: ", nlyr(covariates)))
 
 #extract names from file_names
-
 good.names <- str_extract(cov.path,pattern = "(?<=_)[^.]*(?=.)")
 good.names
+
 #Assign names now
 names(covariates) <- good.names
 
@@ -526,11 +505,18 @@ gc()
 
 #Only state; 4 combined regions, and 2 bioregions
 
+#####User modified parameters
+agent <- c("agri","fores","infra","af","afi")
+
 df.list <- crossing(studyarea$name,agent) %>%
             set_names("region", "agent") %>%
             filter(region %in% c("state","NSW North Coast","NSW South Western Slopes",
                                  combined_bio$Cfact_Regi)) %>%
             arrange(agent)
+
+df.list <- df.list %>% filter(region == "NSW North Coast")
+
+#Only NSW North Coast and all agents
 
 purrr::pwalk(list(
   region = df.list$region,
