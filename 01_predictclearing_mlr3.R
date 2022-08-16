@@ -514,7 +514,9 @@ df.list <- crossing(studyarea$name,agent) %>%
                                  combined_bio$Cfact_Regi)) %>%
             arrange(agent)
 
-df.list <- df.list %>% filter(region == "NSW North Coast")
+df.list <- df.list %>% 
+  filter(region %in% c("NSW North Coast",
+                       "NSW South Western Slopes"))
 
 #Only NSW North Coast and all agents
 
