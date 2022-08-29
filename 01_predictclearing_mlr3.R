@@ -1,6 +1,6 @@
 ##July 2022 using mlr3 modelling approach##
 
-#Remove all data from the environment
+##Remove all data from the environment
 rm(list = ls(all.names = TRUE))
 
 #Project defaults: Albers Equal Projection
@@ -19,6 +19,13 @@ library(devtools)
 if (!require("mlr3spatiotempcv")) install_version("mlr3spatiotempcv", 
                                                   version = "1.0.1", 
                                                   repos = "http://cran.us.r-project.org")
+
+install.packages("https://cran.r-project.org/src/contrib/Archive/mlr3spatiotempcv/mlr3spatiotempcv_1.0.1.tar.gz",
+                 repos=NULL, method = "libcurl")
+
+library(R.utils)
+install.packages("https://cran.r-project.org/src/contrib/Archive/mlr3spatiotempcv/mlr3spatiotempcv_1.0.1.tar.gz")
+
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -32,19 +39,19 @@ lapply(packages, require, character.only=TRUE)
 #n-samples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
 
 nfolds <- 5 #CV folds
-nreps <- 10 #Number of times to repeat CV
-nmod <- 50 #Hyper parameter search limit
+nreps <- 2 #Number of times to repeat CV
+nmod <- 5 #Hyper parameter search limit
 proportion_sample <- 0.2
 
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
 
 #Create a list of study area and bind them for loop
-
 #Specify the data path based on the system
 data.path <- case_when(
   Sys.info()["sysname"] == "Windows" ~ "./data/",
   Sys.info()["sysname"] == "Darwin" ~ "/Users/ascelin/tmp/NSW_cfac/data/",
-  Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/"
+  Sys.info()["sysname"] == "Linux" ~ "/dev/shm/data/" #Amazon EC2
+  #Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/" #Nectar
 )
 
 #Warning message if it can't find the directory
@@ -63,7 +70,11 @@ studyarea <- rbind(nsw %>% transmute(name = "state"),
                    combined_bio %>% transmute(name = combined_bio$Cfact_Regi), 
                    bioregion %>% transmute(name = bioregion$REG_NAME_7))
 
+print(studyarea$name)
+
 ###### SECTION 1: DATA PREPARATION ##############
+yearmodelled <- "post2015"
+yearlosskd <- "pre2015"
 
 do_analysis <- function(region, agent) {
   # Start the timer
@@ -72,19 +83,35 @@ do_analysis <- function(region, agent) {
   results.path <- case_when(
     Sys.info()["sysname"] == "Windows" ~ str_c("./results/",region,"/"),
     Sys.info()["sysname"] == "Darwin" ~ str_c("/Users/ascelin/tmp/NSW_cfac/results/",region,"/"),
-    Sys.info()["sysname"] == "Linux" ~ str_c("/home/ubuntu/results/",region,"/")
+    Sys.info()["sysname"] == "Linux" ~ str_c("/dev/shm/output/",region,"/") #Amazon
+    #Sys.info()["sysname"] == "Linux" ~ str_c("/home/ubuntu/results/",region,"/") #Nectar
   )
+
 
  if (!dir.exists(results.path)){dir.create(results.path)}
 
  print(str_c("Preparing data to run ", agent, " in ", region, " bioregion"))
   
- loss.path <- dir(str_c(data.path, "loss"), full.names=T, pattern = "majorityrule_post2015.tif$")
+ loss.path <- dir(str_c(data.path, "loss"), full.names=T, pattern = str_c("majorityrule_",yearmodelled,".tif$"))
  cov.path <- dir(str_c(data.path, "covariates", sep=""), full.names = T, pattern = ".tif$")
 
  #Remove minimum lot size from the state level as there is no data in western states
  cov.path <- str_subset(cov.path, pattern = "minimumlotsize", negate = T)
-
+ cov.path <- str_subset(cov.path, pattern = "landuse", negate = T)
+ 
+ #Set up a directory for KD of previous losses
+ kd.path <- dir(str_c(data.path, "covariates/losskd", sep=""), full.names = T, pattern = ".tif$")
+ 
+ #pattern <- "landsat"
+ #Use both combine and separately for landsat and SPOT
+ pattern <- c("landsat",yearlosskd)
+ 
+ kd.path <- map(pattern, str_subset, string=kd.path) %>% unlist()
+ #kd.path <- map(pattern, str_subset, string=kd.path) %>% reduce(intersect)
+ 
+ #Add to cov.path
+ cov.path <- c(cov.path,kd.path)
+ 
  #Load BCT and WOODY DATA
  bct <- st_read(dir(str_c(data.path,"/bct/"), full.names = T, pattern = "*.shp$"))
  woody.private.land <- rast(dir(str_c(data.path, "woodyonprivateland", sep=""), full.names = T, pattern = ".tif$"))
@@ -108,7 +135,10 @@ do_analysis <- function(region, agent) {
  loss.raster <- map(loss.file, rast)
  
  #Merge the files in the raster
- loss.raster <- do.call(merge, loss.raster)
+ ifelse(
+   length(loss.raster) > 1,
+   loss.raster <- do.call(merge, loss.raster),
+   loss.raster <- rast(loss.raster))
 
  #Crop to the ROI only if it is not a state model
  ifelse(
@@ -116,7 +146,7 @@ do_analysis <- function(region, agent) {
    loss.raster,
    loss.raster <- loss.raster %>% crop(roi) %>% mask(vect(roi))
  )
- 
+
 #loss.raster[loss.raster!=1] <- NA #Turn everything except 1 to NA
 #This is not required in the new GEE state files - but if others then check this
 
@@ -200,14 +230,15 @@ pts <- st_as_sf(pts, coords= c("x","y"))
 
 model.name <- str_c("roi_",region,"_",
                     "agent_",agent,"_",
+                    "yr_",yearmodelled,"_",
                     "samples_",nrow(loss.pts),"_",
                     "cv_",nfolds,"_",
                     "rep_",nreps,"_",
                     "mod_",nmod)
 
 ## 4.4 Covariates data
+covariates <- rast(cov.path)
 
-covariates <- rast(cov.path) 
 
 ifelse(
   region == "state",
@@ -224,6 +255,8 @@ good.names
 #Assign names now
 names(covariates) <- good.names
 
+#Join kd
+
 ## 5 Extract the covariate data into the training samples
 
 df <- terra::extract(covariates,vect(pts), xy=T) %>%
@@ -231,8 +264,6 @@ df <- terra::extract(covariates,vect(pts), xy=T) %>%
   mutate(loss = as.factor(pts$loss)) %>%
   dplyr::select(-ID)%>% #At this step check which points have NA -
   drop_na() #mlr doesn't take na so remove if any column has NA
-
-unique(df$forestryapprovals)
 
 print(str_c("Data preparation complete for model:: ",model.name))
 
@@ -287,7 +318,7 @@ learner = mlr3::lrn("classif.xgboost",predict_type = "prob")
 learner$fallback = lrn("classif.xgboost", predict_type = "prob")
 
 #set to use 4 CPUs
-set_threads(learner, n = availableCores()/2)
+set_threads(learner, n = availableCores()-4)
 
 #Check the parameters you can set
 # learner$param_set$ids()
@@ -360,16 +391,17 @@ resampled = mlr3::resample(task = task,
                            store_models = F,
                            encapsulate = "evaluate")
 
-# saveRDS(resampled, str_c(results.path,"resampled.Rds"))
+#resampled <- readRDS("E:\\PhD Impact Evaluation\\Chapter 3 conserv biology\\results\\nc\\junk results\\aug7_2022_results\\resampled.Rds")
+saveRDS(resampled, str_c(results.path,"resampled.Rds"))
 
 # future:::ClusterRegistry("stop")
 # # compute the AUROC as a data.table
 auc <- resampled$score(
   measure = mlr3::msr("classif.auc")) %>%
   as.data.frame()
-
-auc.mean <- mean(auc$classif.auc, na.rm=T)
-
+# 
+auc.median <- median(auc$classif.auc, na.rm=T)
+# 
 auc_plot <- auc %>%
   ggplot() +
   geom_histogram(aes(x = classif.auc, y = (..count..)/sum(..count..)),
@@ -489,7 +521,7 @@ model_details <- data.frame(
   mods = nmod,
   rep = nreps,
   agent = agent,
-  auc_mean = auc.mean,
+  auc_mean = auc.median,
   auc_dist = I(list(auc$classif.auc)),
   time = log.txt)
 
