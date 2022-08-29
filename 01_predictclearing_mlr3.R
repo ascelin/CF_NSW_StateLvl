@@ -39,9 +39,9 @@ lapply(packages, require, character.only=TRUE)
 #n-samples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
 
 nfolds <- 5 #CV folds
-nreps <- 2 #Number of times to repeat CV
-nmod <- 5 #Hyper parameter search limit
-proportion_sample <- 0.2
+nreps <- 20 #Number of times to repeat CV
+nmod <- 50 #Hyper parameter search limit
+#proportion_sample <- 0.2
 
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
 
@@ -75,6 +75,9 @@ print(studyarea$name)
 ###### SECTION 1: DATA PREPARATION ##############
 yearmodelled <- "post2015"
 yearlosskd <- "pre2015"
+
+region <- "NSW North Coast"
+agent <- "agri"
 
 do_analysis <- function(region, agent) {
   # Start the timer
@@ -292,16 +295,20 @@ print(str_c("Model training starting for ", agent, " in ", region, " bioregion")
 
 ## Step 2.1 Create a classification task
 
-task = mlr3spatiotempcv::TaskClassifST$new(
-  id = "xgboost_model",
-  backend = mlr3::as_data_backend(df),
-  target = "loss",
-  positive = "1",
-  extra_args = list(
-    coordinate_names = c("x", "y"), #Specify to use these columns as coordinates
-    coords_as_features = FALSE,
-    crs = "EPSG:3577") #Albers
-)
+task = as_task_classif_st(df, id = "xgboost_model", target = "loss",
+                          positive = "1", coordinate_names = c("x", "y"), crs = 3577)
+
+
+# task = mlr3spatiotempcv::TaskClassifST$new(
+#   id = "xgboost_model",
+#   backend = mlr3::as_data_backend(df),
+#   target = "loss",
+#   positive = "1",
+#   extra_args = list(
+#     coordinate_names = c("x", "y"), #Specify to use these columns as coordinates
+#     coords_as_features = FALSE,
+#     crs = "EPSG:3577") #Albers
+# )
 
 levs = levels(task$truth())
 
