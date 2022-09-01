@@ -13,30 +13,15 @@ packages <- c("sf","terra","data.table","tidyverse",
               "iml","future","furrr","purrr","xgboost",
               "lattice","tictoc","scico","ggtext","mlr3spatiotempcv")
 
-#Install the old version of mlr3spatitempcv manually#
-if(!require(devtools)) install.packages("devtools")
-library(devtools)
-if (!require("mlr3spatiotempcv")) install_version("mlr3spatiotempcv", 
-                                                  version = "1.0.1", 
-                                                  repos = "http://cran.us.r-project.org")
-
-install.packages("https://cran.r-project.org/src/contrib/Archive/mlr3spatiotempcv/mlr3spatiotempcv_1.0.1.tar.gz",
-                 repos=NULL, method = "libcurl")
-
-library(R.utils)
-install.packages("https://cran.r-project.org/src/contrib/Archive/mlr3spatiotempcv/mlr3spatiotempcv_1.0.1.tar.gz")
-
-# Install packages not yet installed
-installed_packages <- packages %in% rownames(installed.packages())
-if (any(installed_packages == FALSE)) {
-  install.packages(packages[!installed_packages])
-}
-
 #Load the packages
 lapply(packages, require, character.only=TRUE)
 
-######### Modelling parameters #################
-#n-samples <- 100 #Samples # all samples are selected in the code below use this later if there is a need
+######### User modelling parameters #################
+
+#specify the number of cores to use:
+cores <- availableCores()
+
+###
 
 nfolds <- 5 #CV folds
 nreps <- 20 #Number of times to repeat CV
@@ -75,9 +60,6 @@ print(studyarea$name)
 ###### SECTION 1: DATA PREPARATION ##############
 yearmodelled <- "post2015"
 yearlosskd <- "pre2015"
-
-region <- "NSW North Coast"
-agent <- "agri"
 
 do_analysis <- function(region, agent) {
   # Start the timer
@@ -325,7 +307,7 @@ learner = mlr3::lrn("classif.xgboost",predict_type = "prob")
 learner$fallback = lrn("classif.xgboost", predict_type = "prob")
 
 #set to use 4 CPUs
-set_threads(learner, n = availableCores()-4)
+set_threads(learner, n = cores)
 
 #Check the parameters you can set
 # learner$param_set$ids()
@@ -545,7 +527,10 @@ gc()
 #Only state; 4 combined regions, and 2 bioregions
 
 #####User modified parameters
-agent <- c("agri","fores","infra","af","afi")
+
+agent <- "afi"
+
+#agent <- c("agri","fores","infra","af","afi")
 
 df.list <- crossing(studyarea$name,agent) %>%
             set_names("region", "agent") %>%
@@ -553,9 +538,13 @@ df.list <- crossing(studyarea$name,agent) %>%
                                  combined_bio$Cfact_Regi)) %>%
             arrange(agent)
 
+# df.list <- df.list %>% 
+#   filter(region %in% c("NSW North Coast",
+#                        "NSW South Western Slopes"))
+
 df.list <- df.list %>% 
-  filter(region %in% c("NSW North Coast",
-                       "NSW South Western Slopes"))
+  filter(region %in% c("NSW North Coast"))
+
 
 #Only NSW North Coast and all agents
 
