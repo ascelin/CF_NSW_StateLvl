@@ -19,7 +19,7 @@ lapply(packages, require, character.only=TRUE)
 ######### User modelling parameters #################
 
 #specify the number of cores to use:
-cores <- availableCores()
+cores <- availableCores()-4
 
 ###
 
@@ -35,8 +35,8 @@ nmod <- 50 #Hyper parameter search limit
 data.path <- case_when(
   Sys.info()["sysname"] == "Windows" ~ "./data/",
   Sys.info()["sysname"] == "Darwin" ~ "/Users/ascelin/tmp/NSW_cfac/data/",
-  Sys.info()["sysname"] == "Linux" ~ "/dev/shm/data/" #Amazon EC2
-  #Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/" #Nectar
+  #Sys.info()["sysname"] == "Linux" ~ "/dev/shm/data/" #Amazon EC2
+  Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/" #Nectar
 )
 
 #Warning message if it can't find the directory
@@ -68,8 +68,8 @@ do_analysis <- function(region, agent) {
   results.path <- case_when(
     Sys.info()["sysname"] == "Windows" ~ str_c("./results/",region,"/"),
     Sys.info()["sysname"] == "Darwin" ~ str_c("/Users/ascelin/tmp/NSW_cfac/results/",region,"/"),
-    Sys.info()["sysname"] == "Linux" ~ str_c("/dev/shm/output/",region,"/") #Amazon
-    #Sys.info()["sysname"] == "Linux" ~ str_c("/home/ubuntu/results/",region,"/") #Nectar
+    #Sys.info()["sysname"] == "Linux" ~ str_c("/dev/shm/output/",region,"/") #Amazon
+    Sys.info()["sysname"] == "Linux" ~ str_c("/home/ubuntu/results/",region,"/") #Nectar
   )
 
 
@@ -510,6 +510,7 @@ model_details <- data.frame(
   mods = nmod,
   rep = nreps,
   agent = agent,
+  cores = cores,
   auc_mean = auc.median,
   auc_dist = I(list(auc$classif.auc)),
   time = log.txt)
@@ -528,9 +529,7 @@ gc()
 
 #####User modified parameters
 
-agent <- "afi"
-
-#agent <- c("agri","fores","infra","af","afi")
+agent <- c("agri","fores","infra","af","afi")
 
 df.list <- crossing(studyarea$name,agent) %>%
             set_names("region", "agent") %>%
