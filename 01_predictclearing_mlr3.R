@@ -35,8 +35,8 @@ nmod <- 50 #Hyper parameter search limit
 data.path <- case_when(
   Sys.info()["sysname"] == "Windows" ~ "./data/",
   Sys.info()["sysname"] == "Darwin" ~ "/Users/ascelin/tmp/NSW_cfac/data/",
-  #Sys.info()["sysname"] == "Linux" ~ "/dev/shm/data/" #Amazon EC2
-  Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/" #Nectar
+  Sys.info()["sysname"] == "Linux" ~ "/dev/shm/data/" #Amazon EC2
+  #Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/" #Nectar
 )
 
 #Warning message if it can't find the directory
@@ -68,8 +68,8 @@ do_analysis <- function(region, agent) {
   results.path <- case_when(
     Sys.info()["sysname"] == "Windows" ~ str_c("./results/",region,"/"),
     Sys.info()["sysname"] == "Darwin" ~ str_c("/Users/ascelin/tmp/NSW_cfac/results/",region,"/"),
-    #Sys.info()["sysname"] == "Linux" ~ str_c("/dev/shm/output/",region,"/") #Amazon
-    Sys.info()["sysname"] == "Linux" ~ str_c("/home/ubuntu/results/",region,"/") #Nectar
+    Sys.info()["sysname"] == "Linux" ~ str_c("/dev/shm/output/",region,"/") #Amazon
+    #Sys.info()["sysname"] == "Linux" ~ str_c("/home/ubuntu/results/",region,"/") #Nectar
   )
 
 
