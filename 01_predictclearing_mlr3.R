@@ -58,8 +58,8 @@ studyarea <- rbind(nsw %>% transmute(name = "state"),
 print(studyarea$name)
 
 ###### SECTION 1: DATA PREPARATION ##############
-yearmodelled <- "post2015"
-yearlosskd <- "pre2015"
+yearmodelled <- "post2017"
+yearlosskd <- "pre2017"
 
 do_analysis <- function(region, agent) {
   # Start the timer
@@ -537,12 +537,12 @@ df.list <- crossing(studyarea$name,agent) %>%
                                  combined_bio$Cfact_Regi)) %>%
             arrange(agent)
 
-# df.list <- df.list %>% 
-#   filter(region %in% c("NSW North Coast",
-#                        "NSW South Western Slopes"))
+df.list <- df.list %>%
+  filter(region %in% c("NSW North Coast",
+                       "NSW South Western Slopes"))
 
-df.list <- df.list %>% 
-  filter(region %in% c("NSW North Coast"))
+# df.list <- df.list %>% 
+#   filter(region %in% c("NSW North Coast"))
 
 
 #Only NSW North Coast and all agents
