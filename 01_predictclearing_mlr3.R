@@ -58,12 +58,13 @@ studyarea <- rbind(nsw %>% transmute(name = "state"),
 print(studyarea$name)
 
 ###### SECTION 1: DATA PREPARATION ##############
-yearmodelled <- "post2017"
-yearlosskd <- "pre2017"
 
-do_analysis <- function(region, agent) {
+do_analysis <- function(region, agent, period) {
   # Start the timer
   tic("Start analysis")
+  
+  yearmodelled <- period
+  yearlosskd <- str_c("pre_",yearmodelled)
   
   results.path <- case_when(
     Sys.info()["sysname"] == "Windows" ~ str_c("./results/",region,"/"),
@@ -104,7 +105,7 @@ do_analysis <- function(region, agent) {
  #Create a function to run analysis across the parameters
  roi <- studyarea %>% filter(name == region)
  
- ## 1.1 Get loss raster
+  ## 1.1 Get loss raster
  loss.file <- case_when(
   agent == "agri" ~ list(str_subset(loss.path,"agri")),
   agent == "fores" ~ list(str_subset(loss.path, "fores")),
@@ -138,7 +139,8 @@ do_analysis <- function(region, agent) {
 # 1.2 Mask out the losses outside of the woody in the private land
 
 #Clip Loss Raster
-all.losses <- rast(str_c(data.path,"loss/", "nsw_state_allagents_resampled100m_majorityrule.tif")) 
+all.losses <- rast(str_c(data.path,"loss/", 
+                         "nsw_state_allagent_resampled100m_majorityrule_",yearmodelled,".tif"))
 
 ifelse(
   region == "state",
@@ -210,7 +212,7 @@ pts <- rbind(
   loss.pts %>% mutate(loss = as.factor(1)),
   bg.pts %>% mutate(loss = as.factor(0)))
 
-##3.1 Convert to sf object
+## 3.1 Convert to sf object
 pts <- st_as_sf(pts, coords= c("x","y"))
 
 model.name <- str_c("roi_",region,"_",
@@ -219,11 +221,11 @@ model.name <- str_c("roi_",region,"_",
                     "samples_",nrow(loss.pts),"_",
                     "cv_",nfolds,"_",
                     "rep_",nreps,"_",
-                    "mod_",nmod)
+                    "mod_",nmod,
+                    "period_",period)
 
 ## 4.4 Covariates data
 covariates <- rast(cov.path)
-
 
 ifelse(
   region == "state",
@@ -273,7 +275,7 @@ print(str_c("Data preparation complete for model:: ",model.name))
 #coords <- df[ , c("lon","lat")]
 
 ################# STEP 2: MODELLING SECTION ###########################
-print(str_c("Model training starting for ", agent, " in ", region, " bioregion"))
+print(str_c("Model training starting for ", agent, " in ", region, " bioregion", "for", period))
 
 ## Step 2.1 Create a classification task
 
@@ -381,7 +383,7 @@ resampled = mlr3::resample(task = task,
                            encapsulate = "evaluate")
 
 #resampled <- readRDS("E:\\PhD Impact Evaluation\\Chapter 3 conserv biology\\results\\nc\\junk results\\aug7_2022_results\\resampled.Rds")
-saveRDS(resampled, str_c(results.path,"resampled.Rds"))
+saveRDS(resampled, str_c(results.path,model.name,"resampled.Rds"))
 
 # future:::ClusterRegistry("stop")
 # # compute the AUROC as a data.table
@@ -511,6 +513,7 @@ model_details <- data.frame(
   rep = nreps,
   agent = agent,
   cores = cores,
+  period = period,
   auc_mean = auc.median,
   auc_dist = I(list(auc$classif.auc)),
   time = log.txt)
@@ -531,25 +534,29 @@ gc()
 
 agent <- c("agri","fores","infra","af","afi")
 
-df.list <- crossing(studyarea$name,agent) %>%
-            set_names("region", "agent") %>%
+period <- c("p2","p3","p4")
+
+df.list <- crossing(studyarea$name,agent, period) %>%
+            set_names("region", "agent", "period") %>%
             filter(region %in% c("state","NSW North Coast","NSW South Western Slopes",
                                  combined_bio$Cfact_Regi)) %>%
             arrange(agent)
 
-df.list <- df.list %>%
-  filter(region %in% c("NSW North Coast",
-                       "NSW South Western Slopes"))
+# df.list <- df.list %>%
+#   filter(region %in% c("NSW North Coast",
+#                        "NSW South Western Slopes"))
 
-# df.list <- df.list %>% 
-#   filter(region %in% c("NSW North Coast"))
+df.list <- df.list %>%
+  filter(region %in% c("NSW North Coast")) %>%
+  filter(agent %in% c("agri","fores","af"))
 
 
 #Only NSW North Coast and all agents
 
 purrr::pwalk(list(
   region = df.list$region,
-  agent = df.list$agent),
+  agent = df.list$agent,
+  period = df.list$period),
   .f = possibly(do_analysis, 
                 print("This model didn't run check error"), 
                 quiet =T))
