@@ -19,6 +19,7 @@ lapply(packages, require, character.only=TRUE)
 ######### User modelling parameters #################
 
 #specify the number of cores to use:
+
 cores <- availableCores()-4
 
 ###
@@ -62,7 +63,7 @@ print(studyarea$name)
 do_analysis <- function(region, agent, period) {
   # Start the timer
   tic("Start analysis")
-  
+
   yearmodelled <- period
   yearlosskd <- str_c("pre_",yearmodelled)
   
@@ -501,6 +502,7 @@ ggsave(str_c(results.path, model.name,"_vip.png"), vip, bg="white")
 
 toc(log = TRUE, quiet = TRUE)
 log.txt <- unlist(tic.log(format = T))
+print(str_c("time taken to run ", model.name, log.txt))
 tic.clearlog()
 
 #Save all model details in a dataframe
@@ -524,33 +526,16 @@ gc()
 
 }
 
-#Run the function over the list
-
-## Get a list of all combinations to arrange by agent type
-
-#Only state; 4 combined regions, and 2 bioregions
-
-#####User modified parameters
-
 agent <- c("agri","fores","infra","af","afi")
-
-period <- c("p2","p3","p4")
+period <- c("p1","p2","p3","p4")
 
 df.list <- crossing(studyarea$name,agent, period) %>%
             set_names("region", "agent", "period") %>%
             filter(region %in% c("state","NSW North Coast","NSW South Western Slopes",
                                  combined_bio$Cfact_Regi)) %>%
-            arrange(agent)
-
-# df.list <- df.list %>%
-#   filter(region %in% c("NSW North Coast",
-#                        "NSW South Western Slopes"))
-
-df.list <- df.list %>%
-  filter(region %in% c("NSW North Coast")) %>%
-  filter(agent %in% c("agri","fores","af"))
-
-
+            arrange(agent) %>%
+            filter(region == "NSW North Coast", agent == "af")
+            
 #Only NSW North Coast and all agents
 
 purrr::pwalk(list(
