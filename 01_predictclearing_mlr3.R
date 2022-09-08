@@ -384,7 +384,7 @@ resampled = mlr3::resample(task = task,
                            encapsulate = "evaluate")
 
 #resampled <- readRDS("E:\\PhD Impact Evaluation\\Chapter 3 conserv biology\\results\\nc\\junk results\\aug7_2022_results\\resampled.Rds")
-saveRDS(resampled, str_c(results.path,model.name,"resampled.Rds"))
+#saveRDS(resampled, str_c(results.path,model.name,"resampled.Rds"))
 
 # future:::ClusterRegistry("stop")
 # # compute the AUROC as a data.table
