@@ -62,7 +62,7 @@ print(studyarea$name)
 
 do_analysis <- function(region, agent, period) {
   # Start the timer
-  tic("Start analysis")
+  #tic("Start analysis")
 
   yearmodelled <- period
   yearlosskd <- str_c("pre_",yearmodelled)
@@ -500,10 +500,10 @@ ggsave(str_c(results.path, model.name,"_vip.png"), vip, bg="white")
 # pred <- round(pred, 5)
 # writeRaster(pred, str_c(results.path,model.name, "_predrisk",".tif"),overwrite=T)
 
-toc(log = TRUE, quiet = TRUE)
-log.txt <- unlist(tic.log(format = T))
-print(str_c("time taken to run ", model.name, log.txt))
-tic.clearlog()
+# toc(log = TRUE, quiet = TRUE)
+# log.txt <- unlist(tic.log(format = T))
+# print(str_c("time taken to run", model.name, log.txt))
+# tic.clearlog()
 
 #Save all model details in a dataframe
 model_details <- data.frame(
@@ -520,7 +520,7 @@ model_details <- data.frame(
   auc_dist = I(list(auc$classif.auc)),
   time = log.txt)
 
-saveRDS(model_details, str_c(results.path, model.name,"_modeltime.rds"))
+#saveRDS(model_details, str_c(results.path, model.name,"_modeltime.rds"))
 
 gc()
 
@@ -529,14 +529,17 @@ gc()
 agent <- c("agri","fores","infra","af","afi")
 period <- c("p1","p2","p3","p4")
 
+
 df.list <- crossing(studyarea$name,agent, period) %>%
             set_names("region", "agent", "period") %>%
             filter(region %in% c("state","NSW North Coast","NSW South Western Slopes",
                                  combined_bio$Cfact_Regi)) %>%
             arrange(agent) %>%
-            filter(region == "NSW North Coast", agent == "af")
+            filter(region == "NSW North Coast", agent == "af", period == "p1")
             
 #Only NSW North Coast and all agents
+
+
 
 purrr::pwalk(list(
   region = df.list$region,
@@ -545,6 +548,20 @@ purrr::pwalk(list(
   .f = possibly(do_analysis, 
                 print("This model didn't run check error"), 
                 quiet =T))
+
+
+tic()
+toc(log = TRUE, quiet = TRUE)
+log.txt <- unlist(tic.log(format = T))
+time_df <- data.frame(
+  cores = cores,
+  time = log.txt
+)
+
+write_csv(time_df, str_c("ncores_",cores,".csv"))
+
+tic.clearlog()
+
 
 #New predict data
 # newdata = as.data.frame(as.matrix(covariates))
