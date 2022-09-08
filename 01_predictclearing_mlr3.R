@@ -539,7 +539,7 @@ df.list <- crossing(studyarea$name,agent, period) %>%
             
 #Only NSW North Coast and all agents
 
-
+tic()
 
 purrr::pwalk(list(
   region = df.list$region,
@@ -549,18 +549,16 @@ purrr::pwalk(list(
                 print("This model didn't run check error"), 
                 quiet =T))
 
-
-tic()
 toc(log = TRUE, quiet = TRUE)
 log.txt <- unlist(tic.log(format = T))
 time_df <- data.frame(
   cores = cores,
-  time = log.txt
-)
+  time = log.txt)
+tic.clearlog()
 
 write_csv(time_df, str_c("ncores_",cores,".csv"))
 
-tic.clearlog()
+
 
 
 #New predict data
