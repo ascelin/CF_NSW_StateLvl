@@ -36,9 +36,13 @@ nmod <- 50 #Hyper parameter search limit
 data.path <- case_when(
   Sys.info()["sysname"] == "Windows" ~ "./data/",
   Sys.info()["sysname"] == "Darwin" ~ "/Users/ascelin/tmp/NSW_cfac/data/",
-  Sys.info()["sysname"] == "Linux" ~ "/dev/shm/data/" #Amazon EC2
-  #Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/" #Nectar
+  Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/data/" #Amazon EC2 & Nectar
 )
+
+results.path <- case_when(
+  Sys.info()["sysname"] == "Windows" ~ "./results/",
+  Sys.info()["sysname"] == "Darwin" ~ "/Users/ascelin/tmp/NSW_cfac/results/",
+  Sys.info()["sysname"] == "Linux" ~ "/home/ubuntu/results/") #Amazon EC2 & Nectar
 
 #Warning message if it can't find the directory
 if (dir.exists(data.path)){
@@ -66,14 +70,8 @@ do_analysis <- function(region, agent, period) {
 
   yearmodelled <- period
   yearlosskd <- str_c("pre_",yearmodelled)
-  
-  results.path <- case_when(
-    Sys.info()["sysname"] == "Windows" ~ str_c("./results/",region,"/"),
-    Sys.info()["sysname"] == "Darwin" ~ str_c("/Users/ascelin/tmp/NSW_cfac/results/",region,"/"),
-    Sys.info()["sysname"] == "Linux" ~ str_c("/dev/shm/output/",region,"/") #Amazon
-    #Sys.info()["sysname"] == "Linux" ~ str_c("/home/ubuntu/results/",region,"/") #Nectar
-  )
 
+  results.path <- str_c(results.path, region, "/")
 
  if (!dir.exists(results.path)){dir.create(results.path)}
 
@@ -531,7 +529,7 @@ period <- c("p1","p2","p3","p4")
 
 
 df.list <- crossing(studyarea$name,agent, period) %>%
-            set_names("region", "agent", "period") %>%
+            set_names(c("region", "agent", "period")) %>%
             filter(region %in% c("state","NSW North Coast","NSW South Western Slopes",
                                  combined_bio$Cfact_Regi)) %>%
             arrange(agent) %>%
