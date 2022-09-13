@@ -549,15 +549,15 @@ purrr::pwalk(list(
 
 toc(log = TRUE, quiet = TRUE)
 log.txt <- unlist(tic.log(format = T))
+
+print(str_c("Time take to run the model:" ,log.txt))
+
 time_df <- data.frame(
   cores = cores,
   time = log.txt)
 tic.clearlog()
 
 write_csv(time_df, str_c("ncores_",cores,".csv"))
-
-
-
 
 #New predict data
 # newdata = as.data.frame(as.matrix(covariates))
