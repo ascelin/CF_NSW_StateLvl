@@ -550,7 +550,7 @@ purrr::pwalk(list(
 toc(log = TRUE, quiet = TRUE)
 log.txt <- unlist(tic.log(format = T))
 
-print(str_c("Time take to run the model:" ,log.txt))
+print(str_c("Time take to run the model with ",cores, "cores ",log.txt))
 
 time_df <- data.frame(
   cores = cores,
