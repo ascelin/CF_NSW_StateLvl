@@ -537,7 +537,8 @@ df.list <- crossing(studyarea$name,agent, period) %>%
             
 #Only NSW North Coast and all agents
 
-tic()
+tic.clearlog() # clear any times that have been logged
+tic()  # start the timer
 
 purrr::pwalk(list(
   region = df.list$region,
@@ -548,14 +549,14 @@ purrr::pwalk(list(
                 quiet =T))
 
 toc(log = TRUE, quiet = TRUE)
-log.txt <- unlist(tic.log(format = T))
+log.lst <- tic.log(format = FALSE) # store the row time timings
+run.time <- unlist(lapply(log.lst, function(x) x$toc - x$tic)) 
 
-print(str_c("Time take to run the model with ",cores, "cores ",log.txt))
+cat("\nTime take to run the model with",cores, "cores is", run.time, "seconds\n")
 
 time_df <- data.frame(
   cores = cores,
   time = log.txt)
-tic.clearlog()
 
 write_csv(time_df, str_c("ncores_",cores,".csv"))
 
