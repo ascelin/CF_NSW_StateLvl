@@ -516,7 +516,8 @@ model_details <- data.frame(
   period = period,
   auc_mean = auc.median,
   auc_dist = I(list(auc$classif.auc)),
-  time = log.txt)
+  #time = log.txt)
+  time = -999)
 
 #saveRDS(model_details, str_c(results.path, model.name,"_modeltime.rds"))
 
