@@ -25,8 +25,8 @@ cores <- availableCores()-4
 ###
 
 nfolds <- 5 #CV folds
-nreps <- 20 #Number of times to repeat CV
-nmod <- 50 #Hyper parameter search limit
+nreps <- 10 #Number of times to repeat CV
+nmod <- 15 #Hyper parameter search limit
 #proportion_sample <- 0.2
 
 ##################################3 DON"T MODIFY ANYTHING BELOW THIS CODE ##########################
@@ -556,7 +556,7 @@ cat("\nTime take to run the model with",cores, "cores is", run.time, "seconds\n"
 
 time_df <- data.frame(
   cores = cores,
-  time = log.txt)
+  time = run.time)
 
 write_csv(time_df, str_c("ncores_",cores,".csv"))
 
